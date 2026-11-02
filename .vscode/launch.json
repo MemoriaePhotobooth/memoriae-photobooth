@@ -1,0 +1,38 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "User app (Android phone)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main_user.dart",
+      "toolArgs": ["--flavor", "user", "--dart-define-from-file=env.json"]
+    },
+    {
+      "name": "All apps launcher (Android phone)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "toolArgs": ["--flavor", "user", "--dart-define-from-file=env.json"]
+    },
+    {
+      "name": "User app (Chrome)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main_user.dart",
+      "deviceId": "chrome",
+      "toolArgs": ["--dart-define-from-file=env.json"]
+    }
+  ]
+}
+//flutter run -d chrome -t lib/main_user.dart --dart-define-from-file=env.json
+
+//firebase deploy --only firestore:rules
+
+//flutter build apk --flavor user -t lib/main_user.dart --dart-define-from-file=env.json   (-> app-user-release.apk)
+
+//explorer build\app\outputs\flutter-apk
+
+//flutter build apk --release --flavor user -t lib/main_user.dart --dart-define-from-file=env.json --split-per-abi
+
+//flutter run --dart-define=MAPTILER_KEY=gjNrLlHjQ3DvW6Yj34Vt --dart-define=LOCATIONIQ_KEY=pk.096bf0b2172de41136beb0b19b3cefd9

@@ -1,0 +1,37 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "memoriae-photobooth-3897b",
+          "appId": "1:802281204774:android:2a458acfa98ed3239f4ae7",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "memoriae-photobooth-3897b",
+          "configurations": {
+            "android": "1:802281204774:android:2a458acfa98ed3239f4ae7",
+            "ios": "1:802281204774:ios:93e9fede859481de9f4ae7",
+            "macos": "1:802281204774:ios:93e9fede859481de9f4ae7",
+            "web": "1:802281204774:web:238f241135fdc5439f4ae7",
+            "windows": "1:802281204774:web:6d3e021100faa7f49f4ae7"
+          }
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default"
+    }
+  ],
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  }
+}

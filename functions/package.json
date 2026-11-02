@@ -1,0 +1,11 @@
+{
+  "name": "memoriae-functions",
+  "description": "Sends push notifications to Memoriae customers (staff messages, booking updates, announcements).",
+  "main": "index.js",
+  "engines": { "node": "20" },
+  "dependencies": {
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^6.0.1"
+  },
+  "private": true
+}

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "802281204774",
+    "project_id": "memoriae-photobooth-3897b",
+    "storage_bucket": "memoriae-photobooth-3897b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:802281204774:android:2a458acfa98ed3239f4ae7",
+        "android_client_info": {
+          "package_name": "com.example.memoriae_photobooth"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBMxJfEsOpJpVomDqNp7O8Z8uIDUIEwFwM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
