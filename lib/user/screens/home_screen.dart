@@ -15,7 +15,6 @@ import '../theme/app_colors.dart';
 import '../theme/app_palette.dart';
 import '../widgets/announcement_banner.dart';
 import '../widgets/notification_bell.dart';
-import '../widgets/profile_avatar.dart';
 import 'info_pages.dart';
 import 'my_bookings_screen.dart';
 
@@ -123,9 +122,6 @@ class _HomeScreenState extends State<HomeScreen> {
   // Package carousel: its own controller so the page dots can follow it.
   final ScrollController _carousel = ScrollController();
   int _carouselIndex = 0;
-  // The carousel loops forever: it starts far from offset 0 so the user can
-  // keep swiping past the last package and land on the first one again.
-  bool _carouselPositioned = false;
   bool _scrolled = false;
 
   // Decoded package photos, cached so typing in the search box doesn't
@@ -184,8 +180,10 @@ class _HomeScreenState extends State<HomeScreen> {
     return (parts.first[0] + parts.last[0]).toUpperCase();
   }
 
-  /// Maroon on light; a lighter maroon tint on the dark theme.
-  Color _accentText(BuildContext context) => AppColors.accentText(context);
+  /// The brand maroon is too dark to read on the dark theme, so text that
+  /// uses the accent colour switches to a lighter tint there.
+  Color _accentText(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? const Color(0xFFE57F84) : AppColors.accent;
 
   void _goToBooking(BuildContext context, {DateTime? date, BoothPackage? pkg, int? guests}) {
     Navigator.of(context).pushReplacementNamed(
@@ -314,9 +312,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _reveal(0, _buildHeader(context)),
-                    const SizedBox(height: 18),
-                    _reveal(1, _buildHeroBanner(context)),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 16),
                     const AnnouncementBanner(),
                     _buildApprovalBanner(context),
                     _buildNextBooking(context),
@@ -483,93 +479,42 @@ class _HomeScreenState extends State<HomeScreen> {
     final initials = _initials;
     final first = _firstName;
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        _Pressable(
-          onTap: () => Navigator.of(context).pushReplacementNamed('/profile'),
-          child: ProfileAvatar(
-            size: 46,
-            color: AppColors.accent,
-            fallback: initials.isEmpty
-                ? const Icon(CupertinoIcons.person_fill, color: AppColors.onAccent, size: 20)
-                : Text(initials, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.onAccent)),
-          ),
-        ),
-        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                "Welcome back",
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: AppPalette.textMuted(context)),
+                DateFormat('EEEE, MMMM d').format(DateTime.now()).toUpperCase(),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, letterSpacing: 0.2, color: AppPalette.textMuted(context)),
               ),
-              const SizedBox(height: 1),
+              const SizedBox(height: 2),
               Text(
-                first.isEmpty ? "Guest" : first,
+                first.isEmpty ? "Welcome" : "Hello, $first",
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, letterSpacing: -0.3, color: AppPalette.textPrimary(context)),
+                style: TextStyle(fontSize: 34, fontWeight: FontWeight.w700, letterSpacing: -0.9, height: 1.12, color: AppPalette.textPrimary(context)),
               ),
             ],
           ),
         ),
         const SizedBox(width: 12),
         NotificationBell(userId: _uid, background: AppPalette.groupedCard(context)),
+        const SizedBox(width: 10),
+        _Pressable(
+          onTap: () => Navigator.of(context).pushReplacementNamed('/profile'),
+          child: Container(
+            width: 44,
+            height: 44,
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(color: AppColors.accent, shape: BoxShape.circle),
+            child: initials.isEmpty
+                ? const Icon(CupertinoIcons.person_fill, color: Colors.white, size: 20)
+                : Text(initials, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
+          ),
+        ),
       ],
-    );
-  }
-
-  /// Big feature card under the header ("Explore new collection" in the
-  /// reference design) - jumps straight into booking.
-  Widget _buildHeroBanner(BuildContext context) {
-    return _Pressable(
-      onTap: () => _goToBooking(context, date: _searchDate, guests: _guests),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(20, 20, 16, 20),
-        decoration: BoxDecoration(
-          gradient: AppGradients.card,
-          borderRadius: BorderRadius.circular(26),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Capture your\nbest moments",
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, height: 1.15, letterSpacing: -0.4, color: Colors.white),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                    decoration: const ShapeDecoration(shape: StadiumBorder(), color: Colors.white),
-                    child: const Text(
-                      "Book now",
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.accent),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Container(
-              width: 86,
-              height: 86,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.10),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
-              ),
-              child: const Icon(CupertinoIcons.camera_fill, size: 38, color: Colors.white),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -632,17 +577,17 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(CupertinoIcons.calendar, size: 19, color: hasDate ? AppColors.onAccent : _accentText(context)),
+                Icon(CupertinoIcons.calendar, size: 19, color: hasDate ? Colors.white : _accentText(context)),
                 if (hasDate) ...[
                   const SizedBox(width: 6),
                   Text(
                     DateFormat('MMM d').format(_searchDate!),
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.onAccent),
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white),
                   ),
                   const SizedBox(width: 8),
                   GestureDetector(
                     onTap: () => setState(() => _searchDate = null),
-                    child: const Icon(CupertinoIcons.xmark_circle_fill, size: 16, color: AppColors.onAccent),
+                    child: const Icon(CupertinoIcons.xmark_circle_fill, size: 16, color: Colors.white70),
                   ),
                 ],
               ],
@@ -775,7 +720,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           child: Text(
             label,
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: selected ? AppColors.onAccent : AppPalette.textPrimary(context)),
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: selected ? Colors.white : AppPalette.textPrimary(context)),
           ),
         ),
       );
@@ -872,33 +817,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildPackageCarousel(BuildContext context, List<_FeaturedPackage> items) {
     final cardWidth = _cardStep - 14;
-    final n = items.length;
-    final loop = n > 1;
-    final active = n == 0 ? 0 : _carouselIndex % n;
-    if (loop && !_carouselPositioned) {
-      _carouselPositioned = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_carousel.hasClients) return;
-        _carousel.jumpTo(n * 1000 * _cardStep);
-      });
-    }
+    final active = _carouselIndex.clamp(0, items.length - 1);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(
           height: 424,
-          child: ListView.builder(
+          child: ListView.separated(
             controller: _carousel,
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-            // null itemCount (when there is more than one package) = endless
-            // list, so after the last card it wraps to the first.
-            itemCount: loop ? null : n,
-            itemBuilder: (context, i) => Padding(
-              padding: const EdgeInsets.only(right: 14),
-              child: SizedBox(width: cardWidth, child: _buildPackageCard(context, items[i % n], hero: !loop || (i >= _carouselIndex && i < _carouselIndex + n))),
-            ),
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 14),
+            itemBuilder: (context, i) => SizedBox(width: cardWidth, child: _buildPackageCard(context, items[i])),
           ),
         ),
         // Page dots: one per package, the one in front is a longer pill.
@@ -929,7 +861,7 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Large photo card in the style of the App Store's Today cards: caption
   /// and title over the photo, a frosted bar along the bottom with the
   /// duration, price and a capsule "BOOK" button.
-  Widget _buildPackageCard(BuildContext context, _FeaturedPackage p, {bool hero = true}) {
+  Widget _buildPackageCard(BuildContext context, _FeaturedPackage p) {
     final photo = _photo(p.pkg.imageUrl);
     const panelColor = Color(0xFF2E2A26);
 
@@ -951,9 +883,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 fit: StackFit.expand,
                 children: [
                   if (photo != null)
-                    (hero
-                        ? Hero(tag: 'pkg-photo-${p.id}', child: Image.memory(photo, fit: BoxFit.cover))
-                        : Image.memory(photo, fit: BoxFit.cover))
+                    Hero(tag: 'pkg-photo-${p.id}', child: Image.memory(photo, fit: BoxFit.cover))
                   else
                     DecoratedBox(
                       decoration: const BoxDecoration(
@@ -989,10 +919,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: ShapeDecoration(shape: const StadiumBorder(), color: AppColors.accent),
+                          decoration: const ShapeDecoration(shape: StadiumBorder(), color: AppColors.accent),
                           child: Text(
                             p.tag.toUpperCase(),
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.4, color: AppColors.onAccent),
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.4, color: Colors.white),
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -1000,7 +930,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           p.name,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w700, height: 1.08, letterSpacing: -0.8, color: AppColors.onAccent),
+                          style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w700, height: 1.08, letterSpacing: -0.8, color: Colors.white),
                         ),
                       ],
                     ),
@@ -1036,7 +966,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         decoration: ShapeDecoration(shape: _squircle(11), color: AppColors.accent),
                         child: photo != null
                             ? Image.memory(photo, width: 44, height: 44, fit: BoxFit.cover)
-                            : const Icon(CupertinoIcons.camera_fill, size: 20, color: AppColors.onAccent),
+                            : const Icon(CupertinoIcons.camera_fill, size: 20, color: Colors.white),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -1051,7 +981,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
                             ),
                             const SizedBox(height: 1),
-                            Text(formatPeso(p.price), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFFE57F84))),
+                            Text(formatPeso(p.price), style: const TextStyle(fontSize: 14, color: Colors.white70)),
                           ],
                         ),
                       ),
@@ -1059,7 +989,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                         decoration: ShapeDecoration(shape: const StadiumBorder(), color: Colors.white.withValues(alpha: 0.92)),
-                        child: const Text("BOOK", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.accent)),
+                        child: const Text("BOOK", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.accent)),
                       ),
                     ],
                   ),
@@ -1103,191 +1033,64 @@ class _HomeScreenState extends State<HomeScreen> {
         final date = ts is Timestamp ? ts.toDate() : null;
         final id = latest['id'] as String?;
 
-        final Color gradLight = refunded
-            ? const Color(0xFF2FA36F)
-            : approved
-                ? const Color(0xFF43A047)
-                : rescheduled
-                    ? const Color(0xFF1E88E5)
-                    : const Color(0xFFD64545);
-        final Color gradDark = refunded
-            ? const Color(0xFF15603F)
-            : approved
-                ? const Color(0xFF1B5E20)
-                : rescheduled
-                    ? const Color(0xFF0D47A1)
-                    : const Color(0xFF8E1C1C);
-        final IconData statusIcon = refunded
-            ? Icons.payments_rounded
-            : (rescheduled ? Icons.event_repeat_rounded : (approved ? Icons.verified_rounded : Icons.cancel_rounded));
-        final String title = refunded
-            ? "Your refund was sent"
-            : (rescheduled ? "Your schedule was moved" : (approved ? "You're approved!" : "Booking declined"));
-        final String pill = refunded ? 'REFUNDED' : (rescheduled ? 'RESCHEDULED' : (approved ? 'CONFIRMED' : 'DECLINED'));
-        final String message = refunded
-            ? "${formatPeso(refundAmount)} was sent to your GCash."
-            : (rescheduled
-                ? "Your event was moved to a new date. Please check the details below."
-                : (approved
-                    ? "Your booking is confirmed. We can't wait to capture your moments!"
-                    : "Sorry, we couldn't accept this booking. Open My Bookings for details."));
-        final String? dateText = date != null ? DateFormat('EEE, MMM d, yyyy').format(date) : null;
-
-        Widget chip(IconData icon, String text) => Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(color: color.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(20)),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon, size: 14, color: color),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      text,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppPalette.textPrimary(context)),
-                    ),
-                  ),
-                ],
-              ),
-            );
-
-        void dismiss() {
-          if (id != null) BookingRepository.markNotificationSeen(id);
-        }
-
-        void open() {
-          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MyBookingsScreen()));
-          dismiss();
-        }
-
-        return TweenAnimationBuilder<double>(
-          tween: Tween<double>(begin: 0, end: 1),
-          duration: const Duration(milliseconds: 450),
-          curve: Curves.easeOutCubic,
-          builder: (context, t, child) => Opacity(
-            opacity: t,
-            child: Transform.translate(offset: Offset(0, (1 - t) * 14), child: child),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 20),
-            child: Container(
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                color: AppPalette.cardBg(context),
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: color.withValues(alpha: 0.25)),
-                boxShadow: [BoxShadow(color: color.withValues(alpha: 0.20), blurRadius: 24, offset: const Offset(0, 10))],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 12, 16),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [gradLight, gradDark]),
-                    ),
-                    child: Stack(
-                      children: [
-                        Positioned(
-                          right: -8,
-                          bottom: -22,
-                          child: Icon(statusIcon, size: 100, color: Colors.white.withValues(alpha: 0.10)),
-                        ),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Container(
-                              width: 52,
-                              height: 52,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.white.withValues(alpha: 0.20),
-                                border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
-                              ),
-                              child: Icon(statusIcon, color: Colors.white, size: 28),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.22), borderRadius: BorderRadius.circular(20)),
-                                    child: Text(
-                                      pill,
-                                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1, color: Colors.white),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    title,
-                                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.2),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: dismiss,
-                              child: Container(
-                                padding: const EdgeInsets.all(5),
-                                decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.18)),
-                                child: const Icon(Icons.close_rounded, size: 16, color: Colors.white),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          message,
-                          style: TextStyle(fontSize: 13, height: 1.45, color: AppPalette.textSecondary(context)),
-                        ),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            chip(Icons.photo_camera_outlined, packageName),
-                            if (dateText != null) chip(Icons.event_outlined, dateText),
-                            if (time.isNotEmpty) chip(Icons.schedule_rounded, time),
-                            if (refunded && refundAmount > 0) chip(Icons.payments_outlined, formatPeso(refundAmount)),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
-                        SizedBox(
-                          height: 44,
-                          child: ElevatedButton(
-                            onPressed: open,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: color,
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              shape: const StadiumBorder(),
-                            ),
-                            child: const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text('View My Bookings', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                                SizedBox(width: 8),
-                                Icon(Icons.arrow_forward_rounded, size: 18),
-                              ],
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 20),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: color.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(refunded ? Icons.payments_rounded : (rescheduled ? Icons.event_repeat : (approved ? Icons.check_circle : Icons.cancel)), color: color, size: 26),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        refunded ? "Your refund was sent" : (rescheduled ? "Your schedule was moved" : (approved ? "You're approved! 🎉" : "Booking declined")),
+                        style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: AppPalette.textPrimary(context)),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        refunded
+                            ? "$packageName · ${formatPeso(refundAmount)} was sent to your GCash"
+                            : (date != null
+                                ? "$packageName · ${DateFormat('EEE, MMM d, yyyy').format(date)}${time.isEmpty ? '' : ' · $time'}"
+                                : packageName),
+                        style: TextStyle(fontSize: 12.5, color: AppPalette.textSecondary(context)),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(builder: (_) => const MyBookingsScreen()),
+                              );
+                              if (id != null) BookingRepository.markNotificationSeen(id);
+                            },
+                            child: Text(
+                              "View My Bookings",
+                              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: color, decoration: TextDecoration.underline),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                GestureDetector(
+                  onTap: () {
+                    if (id != null) BookingRepository.markNotificationSeen(id);
+                  },
+                  child: Icon(Icons.close, size: 18, color: AppPalette.textMuted(context)),
+                ),
+              ],
             ),
           ),
         );
@@ -1299,7 +1102,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHowItWorks(BuildContext context) {
     final steps = [
-      (CupertinoIcons.square_grid_2x2_fill, AppColors.accent, "Choose a package", "Pick the duration and add-ons that fit your event"),
+      (CupertinoIcons.square_grid_2x2_fill, const Color(0xFF6E1B1E), "Choose a package", "Pick the duration and add-ons that fit your event"),
       (CupertinoIcons.calendar, const Color(0xFFC9962E), "Pick date & time", "Reserve a slot that works for your schedule"),
       (CupertinoIcons.checkmark_seal_fill, const Color(0xFF34C759), "Confirm & pay", "Upload your receipt and you're booked"),
     ];
@@ -1321,7 +1124,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       height: 34,
                       alignment: Alignment.center,
                       decoration: ShapeDecoration(shape: _squircle(8), color: color),
-                      child: Icon(icon, size: 18, color: AppColors.onAccent),
+                      child: Icon(icon, size: 18, color: Colors.white),
                     ),
                     const SizedBox(width: 14),
                     Expanded(

@@ -1,5 +1,3 @@
-import '../../shared/centered_body.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -9,7 +7,6 @@ import '../services/event_photo_repository.dart';
 import '../services/photo_download.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_palette.dart';
-import '../widgets/circle_back_button.dart';
 
 /// The photos our staff took at the customer's event. Opened from a
 /// booking in My Bookings, so a customer only ever sees photos from their
@@ -37,14 +34,12 @@ class EventPhotosScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppPalette.bg(context),
       appBar: AppBar(
-        leading: const CircleBackButton.appBar(),
-        leadingWidth: CircleBackButton.appBarLeadingWidth,
         backgroundColor: AppPalette.bg(context),
         elevation: 0,
         iconTheme: IconThemeData(color: AppPalette.textPrimary(context)),
         title: Text(title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppPalette.textPrimary(context))),
       ),
-      body: CenteredBody(child: !signedIn
+      body: !signedIn
           ? _message(context, Icons.lock_outline,
               "Sign in to your account to see your event photos.\nGuest bookings can't view them.")
           : StreamBuilder<List<EventPhoto>>(
@@ -96,7 +91,7 @@ class EventPhotosScreen extends StatelessWidget {
                   ],
                 );
               },
-            )),
+            ),
     );
   }
 
@@ -201,7 +196,7 @@ class _PhotoViewerState extends State<_PhotoViewer> {
     return Dialog(
       backgroundColor: Colors.black,
       insetPadding: const EdgeInsets.all(12),
-      child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 760), child: Stack(
+      child: Stack(
         children: [
           PageView.builder(
             controller: _controller,
@@ -266,7 +261,7 @@ class _PhotoViewerState extends State<_PhotoViewer> {
             ),
           ),
         ],
-      )),
+      ),
     );
   }
 }

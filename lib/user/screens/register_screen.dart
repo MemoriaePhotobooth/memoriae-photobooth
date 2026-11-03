@@ -37,10 +37,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
   final _confirmKey = GlobalKey<FormFieldState<String>>();
-  // Each field gets its own key and is checked when the person leaves it, so
-  // errors never show before the field has been used.
-  final Map<TextEditingController, GlobalKey<FormFieldState<String>>> _fieldKeys = {};
-  final Set<TextEditingController> _touched = {};
 
   String _suffix = ''; // '' = none, otherwise one of [_suffixOptions]
   DateTime? _birthDate;
@@ -73,9 +69,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   /// Youngest age allowed to register.
   static const int _minAge = 10;
 
-  /// Max characters allowed in the First Name and Last Name fields.
-  static const int _maxNameLength = 20;
-
   // ---- Field validators ----
 
   static const List<String> _suffixOptions = ['Jr.', 'Sr.', 'II', 'III', 'IV', 'V'];
@@ -107,7 +100,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (value.isEmpty) return "Please enter your $label.";
     final letters = value.replaceAll(RegExp(r"[^a-zA-ZñÑ]"), '');
     if (letters.length < 2) return "${_cap(label)} is too short.";
-    if (value.length > _maxNameLength) return "${_cap(label)} is too long (max $_maxNameLength characters).";
+    if (value.length > 40) return "${_cap(label)} is too long (max 40 characters).";
     if (!_nameChars.hasMatch(value)) {
       return "${_cap(label)} must start with a letter and only use letters, spaces, and - ' .";
     }
@@ -331,7 +324,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
     if (!_agreedToTerms) {
-      setState(() => _error = "Please read and accept the Terms and Conditions to create your account.");
+      setState(() => _error = "Please agree to the Terms of Service and Privacy Policy to continue.");
       return;
     }
 
@@ -353,7 +346,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         context: context,
         builder: (dialogContext) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          icon: const Icon(Icons.error_outline, color: Color(0xFFE5484D), size: 32),
+          icon: const Icon(Icons.error_outline, color: AppColors.accent, size: 32),
           title: const Text("Account Already Exists", textAlign: TextAlign.center),
           content: const Text(
             "There's already an account registered with that email. Try logging in instead, or use a different email to sign up.",
@@ -367,7 +360,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               child: const Text("Use a Different Email"),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: AppColors.onAccent),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.white),
               onPressed: () {
                 Navigator.of(dialogContext).pop();
                 Navigator.of(context).pushReplacement(
@@ -451,9 +444,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
+                    const Row(
                       children: [
-                      const CircleBackButton(),
+                      CircleBackButton(),
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -477,7 +470,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 validator: _validateFirstName,
                                 textCapitalization: TextCapitalization.words,
                                 inputFormatters: _nameFormatters,
-                                maxLength: _maxNameLength,
                               ),
                             ],
                           ),
@@ -527,7 +519,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 validator: _validateLastName,
                                 textCapitalization: TextCapitalization.words,
                                 inputFormatters: _nameFormatters,
-                                maxLength: _maxNameLength,
                               ),
                             ],
                           ),
@@ -623,12 +614,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       const SizedBox(height: 14),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        decoration: BoxDecoration(color: const Color(0xFFE5484D).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
+                        decoration: BoxDecoration(color: AppColors.accentTint(0.08), borderRadius: BorderRadius.circular(12)),
                         child: Row(
                           children: [
-                            const Icon(Icons.error_outline, size: 16, color: Color(0xFFE5484D)),
+                            const Icon(Icons.error_outline, size: 16, color: AppColors.accent),
                             const SizedBox(width: 8),
-                            Expanded(child: Text(_error!, style: const TextStyle(fontSize: 12, color: Color(0xFFE5484D)))),
+                            Expanded(child: Text(_error!, style: const TextStyle(fontSize: 12, color: AppColors.accent))),
                           ],
                         ),
                       ),
@@ -640,15 +631,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         onPressed: _loading ? null : _submit,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.accent,
-                          foregroundColor: AppColors.onAccent,
+                          foregroundColor: Colors.white,
                           elevation: 0,
-                          shape: const StadiumBorder(),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                         ),
                         child: _loading
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onAccent),
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                               )
                             : const Text("Create Account", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
                       ),
@@ -727,7 +718,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF8A2429), Color(0xFF3A1214)],
+          colors: [AppColors.accent, Color(0xFF9A3236)],
         ),
         borderRadius: BorderRadius.circular(28),
         boxShadow: AppShadows.accentGlow,
@@ -769,7 +760,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   static final List<TextInputFormatter> _nameFormatters = [
     FilteringTextInputFormatter.allow(RegExp(r"[a-zA-ZñÑ .'\-]")),
-    LengthLimitingTextInputFormatter(_maxNameLength),
+    LengthLimitingTextInputFormatter(40),
   ];
 
   Widget _buildSuffixField(BuildContext context) {
@@ -777,12 +768,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
       initialValue: _suffix.isEmpty ? null : _suffix,
       isExpanded: true,
       icon: Icon(Icons.expand_more, size: 22, color: AppPalette.textMuted(context)),
-      hint: Text("N/A", style: TextStyle(color: AppPalette.textMuted(context), fontSize: 16)),
+      hint: Text("None", style: TextStyle(color: AppPalette.textMuted(context), fontSize: 16)),
       style: TextStyle(color: AppPalette.textPrimary(context), fontSize: 17),
       dropdownColor: AppPalette.surface(context),
       borderRadius: BorderRadius.circular(16),
       items: [
-        const DropdownMenuItem<String>(value: '', child: Text("N/A")),
+        const DropdownMenuItem<String>(value: '', child: Text("None")),
         for (final option in _suffixOptions) DropdownMenuItem<String>(value: option, child: Text(option)),
       ],
       onChanged: (v) => setState(() => _suffix = v ?? ''),
@@ -917,23 +908,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  /// Ticking the box opens the full Terms and Conditions pop-up; it only
-  /// becomes ticked if the person reads to the end and taps "I Accept".
-  /// Tapping a ticked box simply un-ticks it.
-  Future<void> _onTermsTap() async {
-    if (_agreedToTerms) {
-      setState(() => _agreedToTerms = false);
-      return;
-    }
-    FocusScope.of(context).unfocus();
-    final accepted = await showTermsAcceptDialog(context);
-    if (!mounted) return;
-    setState(() {
-      _agreedToTerms = accepted;
-      if (accepted) _error = null;
-    });
-  }
-
   /// Required "I agree to the Terms of Service" checkbox — tapping the
   /// link opens the same [PolicyScreen] the Home screen's footer links
   /// to, so there's only one copy of the actual terms text to keep
@@ -947,7 +921,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
           height: 22,
           child: Checkbox(
             value: _agreedToTerms,
-            onChanged: (_) => _onTermsTap(),
+            onChanged: (v) => setState(() {
+              _agreedToTerms = v ?? false;
+              if (_agreedToTerms) _error = null;
+            }),
             activeColor: AppColors.accent,
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
@@ -956,7 +933,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         const SizedBox(width: 10),
         Expanded(
           child: GestureDetector(
-            onTap: _onTermsTap,
+            onTap: () => setState(() {
+              _agreedToTerms = !_agreedToTerms;
+              if (_agreedToTerms) _error = null;
+            }),
             child: RichText(
               text: TextSpan(
                 style: TextStyle(fontSize: 13.5, color: AppPalette.textSecondary(context), height: 1.4),
@@ -1012,23 +992,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
     TextCapitalization textCapitalization = TextCapitalization.none,
     GlobalKey<FormFieldState<String>>? fieldKey,
   }) {
-    final fk = fieldKey ?? _fieldKeys.putIfAbsent(controller, () => GlobalKey<FormFieldState<String>>());
-    return Focus(
-      canRequestFocus: false,
-      skipTraversal: true,
-      onFocusChange: (hasFocus) {
-        if (hasFocus) return;
-        setState(() => _touched.add(controller));
-        fk.currentState?.validate();
-      },
-      child: TextFormField(
-      key: fk,
+    return TextFormField(
+      key: fieldKey,
       controller: controller,
       textCapitalization: textCapitalization,
       obscureText: obscure,
       keyboardType: keyboardType,
       validator: validator,
-      autovalidateMode: _touched.contains(controller) ? AutovalidateMode.onUserInteraction : AutovalidateMode.disabled,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
       onChanged: onChanged,
       inputFormatters: inputFormatters,
       maxLength: maxLength,
@@ -1044,7 +1015,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 icon: Icon(obscure ? Icons.visibility_off : Icons.visibility, size: 22, color: AppPalette.textMuted(context)),
                 onPressed: onToggleObscure,
               ),
-      ),
       ),
     );
   }

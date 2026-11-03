@@ -61,7 +61,7 @@ class RentalReceiptPdf {
                 ),
               ),
               pw.SizedBox(width: 12),
-              pw.Text(v, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
+              pw.Text(v, style: const pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
             ],
           ),
         );
@@ -83,7 +83,7 @@ class RentalReceiptPdf {
         build: (context) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            pw.Text('MEMORIAE PHOTOBOOTH', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: _maroon)),
+            pw.Text('MEMORIAE PHOTOBOOTH', style: const pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: _maroon)),
             pw.SizedBox(height: 2),
             pw.Text('Camera rental receipt', style: const pw.TextStyle(fontSize: 11, color: _grey)),
             divider(),

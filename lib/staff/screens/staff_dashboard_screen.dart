@@ -1,5 +1,3 @@
-import '../../shared/app_modal.dart';
-import '../../shared/top_toast.dart';
 import 'refund_requests_screen.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -9,14 +7,11 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../models/booking_record.dart';
 import '../models/camera_rental_record.dart';
-import '../models/pricing_item_record.dart';
-import '../services/pricing_repository.dart';
 import '../services/auth_service.dart';
 import '../services/booking_repository.dart';
 import '../services/camera_rental_repository.dart';
 import '../services/staff_settings.dart';
 import '../theme/app_colors.dart';
-import '../../shared/top_alert.dart';
 import '../theme/app_palette.dart';
 import '../widgets/dashboard_kit.dart';
 import '../widgets/glass_bottom_nav.dart';
@@ -163,14 +158,20 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
   void _announceNewBookings(List<BookingRecord> fresh) {
     SystemSound.play(SystemSoundType.alert);
     final first = fresh.first;
-    final who = first.customerName.trim().isEmpty ? 'a customer' : shortenForAlert(first.customerName);
-    final single = fresh.length == 1;
-    TopAlert.show(
-      context,
-      title: single ? 'New booking' : '${fresh.length} new bookings',
-      message: single ? '$who needs approval' : 'They need approval',
-      accent: AppColors.accent,
-      onAction: () => _goToBooking(first, isDesktop: MediaQuery.of(context).size.width >= _desktopBreakpoint),
+    final who = first.customerName.trim().isEmpty ? 'a customer' : first.customerName.trim();
+    final message = fresh.length == 1 ? "New booking from $who needs approval" : "${fresh.length} new bookings need approval";
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 8),
+        action: SnackBarAction(
+          label: "View",
+          onPressed: () => _goToBooking(first, isDesktop: MediaQuery.of(context).size.width >= _desktopBreakpoint),
+        ),
+      ),
     );
   }
 
@@ -222,7 +223,9 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
       MaterialPageRoute(builder: (_) => const StaffWalkInBookingScreen()),
     );
     if (created == true && mounted) {
-      TopToast.show(context, "Walk-in booking confirmed and payment logged to POS.");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Walk-in booking confirmed and payment logged to POS.")),
+      );
     }
   }
 
@@ -258,13 +261,13 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
           // card width + a small gap), top-aligned with it, instead of
           // covering the sidebar's own icons.
           final screen = MediaQuery.of(dialogContext).size;
-          final left = 16 + _StaffSidebar._expandedCard + 12;
+          const left = 16 + _StaffSidebar._expandedCard + 12;
           final width = (screen.width - left - 16).clamp(320.0, 420.0).toDouble();
           return SafeArea(
             child: Align(
               alignment: Alignment.topLeft,
               child: Padding(
-                padding: EdgeInsets.only(top: 16, left: left),
+                padding: const EdgeInsets.only(top: 16, left: left),
                 child: Material(
                   color: Colors.transparent,
                   child: SizedBox(
@@ -302,20 +305,23 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
 
     // Mobile keeps a bottom sheet (a dropdown wouldn't fit a narrow
     // screen), using the same tabs/tiles as the desktop panel.
-    await showAppModal<void>(
-      context,
-      maxWidth: 520,
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (sheetContext) {
-        return _NotificationsPanel(
-          isDesktop: false,
-          onGoToBooking: (b) {
-            Navigator.of(sheetContext).pop();
-            _goToBooking(b, isDesktop: false);
-          },
-          onGoToRentals: () {
-            Navigator.of(sheetContext).pop();
-            _goToRentals(isDesktop: false);
-          },
+        return SafeArea(
+          child: _NotificationsPanel(
+            isDesktop: false,
+            onGoToBooking: (b) {
+              Navigator.of(sheetContext).pop();
+              _goToBooking(b, isDesktop: false);
+            },
+            onGoToRentals: () {
+              Navigator.of(sheetContext).pop();
+              _goToRentals(isDesktop: false);
+            },
+          ),
         );
       },
     );
@@ -814,13 +820,13 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
 
         Widget body;
         if (bookings.isEmpty) {
-          body = _BookingsEmpty(
+          body = const _BookingsEmpty(
             icon: Icons.event_available_outlined,
             title: "No bookings yet",
             subtitle: "New bookings from customers and walk-ins will show up here.",
           );
         } else if (filtered.isEmpty) {
-          body = _BookingsEmpty(
+          body = const _BookingsEmpty(
             icon: Icons.search_off_rounded,
             title: "No bookings match",
             subtitle: "Try a different search or pick another status.",
@@ -1015,7 +1021,7 @@ class _NotificationsPanelState extends State<_NotificationsPanel> {
       if (mounted) setState(() => _readIds.add(b.id));
     } catch (e) {
       if (mounted) {
-        TopToast.show(context, e.toString().replaceFirst('Exception: ', ''), kind: TopToastKind.error);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -1046,7 +1052,7 @@ class _NotificationsPanelState extends State<_NotificationsPanel> {
       if (mounted) setState(() => _readIds.add(b.id));
     } catch (e) {
       if (mounted) {
-        TopToast.show(context, e.toString().replaceFirst('Exception: ', ''), kind: TopToastKind.error);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -1068,9 +1074,7 @@ class _NotificationsPanelState extends State<_NotificationsPanel> {
 
   @override
   Widget build(BuildContext context) {
-    // On a phone the panel sits inside the centered popup, which already
-    // rounds and clips it; on desktop it is the floating dropdown card.
-    final radius = widget.isDesktop ? BorderRadius.circular(20) : BorderRadius.zero;
+    final radius = widget.isDesktop ? BorderRadius.circular(20) : const BorderRadius.vertical(top: Radius.circular(20));
     return Container(
       constraints: BoxConstraints(maxHeight: widget.isDesktop ? 520 : MediaQuery.of(context).size.height * 0.82),
       decoration: BoxDecoration(
@@ -1098,6 +1102,15 @@ class _NotificationsPanelState extends State<_NotificationsPanel> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (!widget.isDesktop)
+                    Center(
+                      child: Container(
+                        margin: const EdgeInsets.only(top: 10, bottom: 2),
+                        width: 36,
+                        height: 4,
+                        decoration: BoxDecoration(color: AppPalette.divider(context), borderRadius: BorderRadius.circular(999)),
+                      ),
+                    ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 18, 16, 4),
                     child: Row(
@@ -2178,105 +2191,6 @@ class _BookingList extends StatefulWidget {
 class _BookingListState extends State<_BookingList> {
   int _page = 0;
 
-  // ── Package photo (what the customer booked) ────────────────────────────
-  StreamSubscription<List<PricingItemRecord>>? _pricingSub;
-  final Map<String, Uint8List> _photoBytes = {}; // package id -> decoded photo
-  final Map<String, String> _photoUrlById = {}; // package id -> http(s) photo
-  final Map<String, String> _idByName = {}; // lower-case name -> package id
-
-  @override
-  void initState() {
-    super.initState();
-    _pricingSub = PricingRepository.watchAllPricing().listen((items) {
-      final bytes = <String, Uint8List>{};
-      final urls = <String, String>{};
-      final names = <String, String>{};
-      for (final p in items) {
-        if (p.imageUrl.isEmpty) continue;
-        names[p.name.trim().toLowerCase()] = p.id;
-        if (p.imageUrl.startsWith('data:')) {
-          try {
-            bytes[p.id] = base64Decode(p.imageUrl.substring(p.imageUrl.indexOf(',') + 1));
-          } catch (_) {}
-        } else if (p.imageUrl.startsWith('http')) {
-          urls[p.id] = p.imageUrl;
-        }
-      }
-      if (!mounted) return;
-      setState(() {
-        _photoBytes..clear()..addAll(bytes);
-        _photoUrlById..clear()..addAll(urls);
-        _idByName..clear()..addAll(names);
-      });
-    }, onError: (_) {});
-  }
-
-  @override
-  void dispose() {
-    _pricingSub?.cancel();
-    super.dispose();
-  }
-
-  /// Package id whose photo we can show for this booking: matches the
-  /// booking's `packageId` first (survives a rename), then the saved name.
-  String? _photoKeyFor(BookingRecord b) {
-    bool has(String id) => _photoBytes.containsKey(id) || _photoUrlById.containsKey(id);
-    if (b.packageId.isNotEmpty && has(b.packageId)) return b.packageId;
-    final id = _idByName[b.packageName.trim().toLowerCase()];
-    if (id != null && has(id)) return id;
-    return null;
-  }
-
-  /// Leading visual for a booking card: the package photo with the
-  /// customer's initial as a small badge, or the plain initial avatar when
-  /// the package has no photo.
-  Widget _leading(BuildContext context, BookingRecord b, String name) {
-    final initialAvatar = CircleAvatar(
-      radius: 20,
-      backgroundColor: AppColors.accentTint(0.10),
-      child: Text(name[0].toUpperCase(),
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.accent)),
-    );
-    final key = _photoKeyFor(b);
-    if (key == null) return initialAvatar;
-    final fallback = Container(
-      color: AppColors.accentTint(0.10),
-      alignment: Alignment.center,
-      child: Icon(Icons.photo_outlined, size: 20, color: AppPalette.textMuted(context)),
-    );
-    final Widget photo = _photoBytes.containsKey(key)
-        ? Image.memory(_photoBytes[key]!, fit: BoxFit.cover, gaplessPlayback: true, errorBuilder: (_, __, ___) => fallback)
-        : Image.network(_photoUrlById[key]!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => fallback);
-    return SizedBox(
-      width: 56,
-      height: 56,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned.fill(
-            child: ClipRRect(borderRadius: BorderRadius.circular(14), child: photo),
-          ),
-          Positioned(
-            right: -4,
-            bottom: -4,
-            child: Container(
-              width: 22,
-              height: 22,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: AppColors.accent,
-                shape: BoxShape.circle,
-                border: Border.all(color: AppPalette.cardBg(context), width: 2),
-              ),
-              child: Text(name[0].toUpperCase(),
-                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   /// Section a booking falls under, so the list reads in order of time.
   String _groupOf(DateTime date) {
     final now = DateTime.now();
@@ -2422,8 +2336,13 @@ class _BookingListState extends State<_BookingList> {
             children: [
               Row(
                 children: [
-                  _leading(context, b, name),
-                  const SizedBox(width: 14),
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor: AppColors.accentTint(0.10),
+                    child: Text(name[0].toUpperCase(),
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.accent)),
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2672,10 +2591,10 @@ class _BookingDetailPaneState extends State<_BookingDetailPane> {
     try {
       await _staffMarkRefunded(_current.id);
       if (!mounted) return;
-      TopToast.show(context, "Refund marked as sent.");
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Refund marked as sent.")));
     } catch (e) {
       if (!mounted) return;
-      TopToast.show(context, "Couldn't update refund: $e", kind: TopToastKind.error);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Couldn't update refund: $e")));
     } finally {
       if (mounted) setState(() => _updating = false);
     }
@@ -2688,7 +2607,9 @@ class _BookingDetailPaneState extends State<_BookingDetailPane> {
     );
     if (updated == null || !mounted) return;
     setState(() => _override = updated);
-    TopToast.show(context, "Booking rescheduled — the customer has been notified and will see the new schedule.");
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Booking rescheduled — the customer has been notified and will see the new schedule.")),
+    );
   }
 
   static const _rejectionReasons = [
@@ -2705,6 +2626,7 @@ class _BookingDetailPaneState extends State<_BookingDetailPane> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         icon: const Icon(Icons.payments_rounded, color: AppColors.accent),
         title: const Text("Mark balance as paid?"),
         content: Text(
@@ -2729,10 +2651,10 @@ class _BookingDetailPaneState extends State<_BookingDetailPane> {
       final staffName = await AuthService.instance.currentStaffDisplayName();
       await BookingRepository.markBalancePaid(b.id, staffId: staffId, staffName: staffName);
       if (!mounted) return;
-      TopToast.show(context, "Balance marked as paid.");
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Balance marked as paid.")));
     } catch (e) {
       if (!mounted) return;
-      TopToast.show(context, "Couldn't update payment: $e", kind: TopToastKind.error);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Couldn't update payment: $e")));
     } finally {
       if (mounted) setState(() => _updating = false);
     }
@@ -2752,17 +2674,21 @@ class _BookingDetailPaneState extends State<_BookingDetailPane> {
         refund: refund,
       );
       if (mounted && status == 'cancelled') {
-        TopToast.show(context, "Booking rejected — the customer has been notified.");
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Booking rejected — the customer has been notified.")),
+        );
       }
       if (mounted && status == 'confirmed') {
-        TopToast.show(context, "Booking accepted — that date is now locked, and other requests for it were declined.");
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Booking accepted — that date is now locked, and other requests for it were declined.")),
+        );
       }
     } on DoubleBookingException catch (e) {
       if (!mounted) return;
       _showDoubleBookingDialog(e.message);
     } catch (e) {
       if (!mounted) return;
-      TopToast.show(context, "Couldn't update status: $e", kind: TopToastKind.error);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Couldn't update status: $e")));
     } finally {
       if (mounted) setState(() => _updating = false);
     }
@@ -2774,6 +2700,7 @@ class _BookingDetailPaneState extends State<_BookingDetailPane> {
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         icon: const Icon(Icons.event_busy, color: AppColors.accent),
         title: const Text("Date already booked"),
         content: Text(message, style: const TextStyle(fontSize: 13)),
@@ -3355,7 +3282,9 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
       await AuthService.instance.changePassword(currentPassword: current, newPassword: next);
       if (!mounted) return;
       Navigator.of(context).pop();
-      TopToast.show(context, "Password changed.");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Password changed.")),
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -3686,7 +3615,6 @@ class _RescheduleDialogState extends State<_RescheduleDialog> {
     final own = widget.booking.date;
     final initial = _date.isBefore(first) ? first : _date;
     final picked = await showDatePicker(
-      initialEntryMode: DatePickerEntryMode.calendarOnly,
       context: context,
       initialDate: initial,
       firstDate: first,
@@ -3917,7 +3845,7 @@ List<Widget> _receiptScanInfo(BuildContext context, BookingRecord b) {
                     borderRadius: BorderRadius.circular(8),
                     onTap: () {
                       Clipboard.setData(ClipboardData(text: ref));
-                      TopToast.show(context, "Reference number copied");
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Reference number copied")));
                     },
                     child: Padding(
                       padding: const EdgeInsets.all(4),

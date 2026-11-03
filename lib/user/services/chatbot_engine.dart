@@ -135,12 +135,12 @@ class ChatbotEngine {
     // 2a. Status / balance / refunds: the My Bookings screen already shows
     // these live, so point customers there instead of tying up staff.
     if (_has(t, const ['my booking', 'my bookings', 'booking status', 'status', 'balance', 'refund*', 'ticket*'])) {
-      return ChatReply(ChatMessage(
+      return const ChatReply(ChatMessage(
         fromBot: true,
         text: 'Your booking status, any balance due, and refund updates are shown under My Bookings. '
             'Refunds are sent to your GCash — you can save your GCash refund account in Profile > Payment Methods.\n\n'
             'For questions about cancellation or refund policy, our staff can help.',
-        actions: const [ChatAction.myBookings(), ChatAction.handoff()],
+        actions: [ChatAction.myBookings(), ChatAction.handoff()],
       ));
     }
 
@@ -214,10 +214,10 @@ class ChatbotEngine {
 
     // 10. Location.
     if (_has(t, const ['location', 'saan', 'where', 'venue', 'area', 'address'])) {
-      return ChatReply(ChatMessage(
+      return const ChatReply(ChatMessage(
         fromBot: true,
         text: "When you book, you pin your event location on a map (there's also a \"Use my location\" button). I don't have details on service areas or our studio address — our staff can tell you those.",
-        actions: const [ChatAction.navigate('Go to Book', '/book'), ChatAction.handoff()],
+        actions: [ChatAction.navigate('Go to Book', '/book'), ChatAction.handoff()],
       ));
     }
 
