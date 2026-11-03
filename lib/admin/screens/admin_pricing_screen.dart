@@ -1,4 +1,5 @@
 import '../../shared/top_toast.dart';
+import '../../shared/upload_limit.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -401,21 +402,16 @@ class _AdminPricingScreenState extends State<AdminPricingScreen> {
                 // Same constraints as ReceiptUpload — keeps the base64
                 // result comfortably small since there's no Storage
                 // upload backing this, just an in-memory data: URI.
-                final XFile? picked = await picker.pickImage(
-                  source: ImageSource.gallery,
-                  imageQuality: 70,
-                  maxWidth: 1000,
-                  maxHeight: 1000,
-                );
+                final XFile? picked = await picker.pickImage(source: ImageSource.gallery);
                 if (picked == null) return;
-                final bytes = await picked.readAsBytes();
-                if (bytes.lengthInBytes > 700 * 1024) {
-                  if (dialogContext.mounted) {
-                    TopToast.show(dialogContext, "That photo is too large (${(bytes.lengthInBytes / 1024).round()} KB) — pick a smaller one.");
-                  }
-                  return;
-                }
-                setState(() => imageUrl = PricingRepository.encodeImage(bytes, picked.name));
+                // Up to 100 MB is accepted (over that is rejected); the photo
+                // is shrunk automatically so it fits in the database.
+                final prepared = await UploadLimit.prepare(picked, maxDimension: 1000, targetBytes: 700 * 1024);
+                setState(() => imageUrl = PricingRepository.encodeImage(prepared.bytes, prepared.name));
+              } on UploadTooLargeException catch (e) {
+                if (dialogContext.mounted) TopToast.show(dialogContext, e.toString());
+              } catch (e) {
+                if (dialogContext.mounted) TopToast.show(dialogContext, e.toString().replaceFirst('Exception: ', ''));
               } finally {
                 if (dialogContext.mounted) setState(() => picking = false);
               }

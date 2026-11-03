@@ -1,3 +1,4 @@
+import '../../shared/centered_body.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -155,7 +156,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
         foregroundColor: AppPalette.textPrimary(context),
         title: Text('Payment Methods', style: TextStyle(color: AppPalette.textPrimary(context), fontWeight: FontWeight.bold, fontSize: 16)),
       ),
-      body: SafeArea(
+      body: CenteredBody(child: SafeArea(
         child: _loading
             ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
             : ListView(
@@ -168,7 +169,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                   _history(context),
                 ],
               ),
-      ),
+      )),
     );
   }
 

@@ -234,11 +234,10 @@ async function applyInChunks(docs, write) {
   }
 }
 
-exports.deleteMyAccount = onCall(async (request) => {
-  const uid = request.auth && request.auth.uid;
-  if (!uid) {
-    throw new HttpsError('unauthenticated', 'Log in to delete your account.');
-  }
+/// Removes one customer's data and login. Shared by the customer's own
+/// "Delete account" (self = true) and the admin's "Delete customer" (self = false).
+async function purgeCustomerAccount(uid, self) {
+  const who = self ? 'You have' : 'This customer has';
 
   const pendingBooking = await db.collection('bookings')
     .where('userId', '==', uid)
@@ -247,7 +246,7 @@ exports.deleteMyAccount = onCall(async (request) => {
   if (!pendingBooking.empty) {
     throw new HttpsError(
       'failed-precondition',
-      "You have a booking still waiting for review or payment. Please wait until it's settled, then try again.",
+      `${who} a booking still waiting for review or payment. ${self ? "Please wait until it's settled, then try again." : 'Settle or decline it first, then try again.'}`,
     );
   }
 
@@ -258,7 +257,7 @@ exports.deleteMyAccount = onCall(async (request) => {
   if (!openRefund.empty) {
     throw new HttpsError(
       'failed-precondition',
-      'You have a refund request still open. Please wait for the studio to finish it, then try again.',
+      `${who} a refund request still open. ${self ? 'Please wait for the studio to finish it, then try again.' : 'Finish the refund first, then try again.'}`,
     );
   }
 
@@ -269,7 +268,7 @@ exports.deleteMyAccount = onCall(async (request) => {
   if (!activeRental.empty) {
     throw new HttpsError(
       'failed-precondition',
-      'You still have a camera rental that has not been returned. Please return it, then try again.',
+      `${who} a camera rental that has not been returned. ${self ? 'Please return it, then try again.' : 'Mark it returned first, then try again.'}`,
     );
   }
 
@@ -294,9 +293,54 @@ exports.deleteMyAccount = onCall(async (request) => {
   }
   await db.collection('threadStatus').doc(uid).delete();
   await db.collection('users').doc(uid).delete();
+  // A block on a deleted account has nothing left to apply to.
+  await db.collection('blockedUsers').doc(uid).delete();
 
   // Last step: the login itself. If anything above failed, the account still
   // exists and the customer can simply try again.
-  await getAuth().deleteUser(uid);
+  try {
+    await getAuth().deleteUser(uid);
+  } catch (e) {
+    if (!(e && e.code === 'auth/user-not-found')) throw e;
+  }
+}
+
+exports.deleteMyAccount = onCall(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  if (!uid) {
+    throw new HttpsError('unauthenticated', 'Log in to delete your account.');
+  }
+  await purgeCustomerAccount(uid, true);
+  return { ok: true };
+});
+
+// Admin-only: delete a customer's account from the Admin app's Customers page.
+// Same cleanup as deleteMyAccount. Refuses to touch admin or staff logins.
+exports.adminDeleteCustomer = onCall(async (request) => {
+  const caller = request.auth && request.auth.uid;
+  if (!caller) {
+    throw new HttpsError('unauthenticated', 'Log in as an admin.');
+  }
+  const callerIsAdmin = (await db.collection('admins').doc(caller).get()).exists;
+  if (!callerIsAdmin) {
+    throw new HttpsError('permission-denied', 'Only admins can delete customer accounts.');
+  }
+
+  const target = request.data && request.data.uid;
+  if (typeof target !== 'string' || target.trim() === '') {
+    throw new HttpsError('invalid-argument', 'No customer account was given.');
+  }
+  if (target === caller) {
+    throw new HttpsError('failed-precondition', 'You cannot delete your own admin account here.');
+  }
+  const [isAdminAcct, isStaffAcct] = await Promise.all([
+    db.collection('admins').doc(target).get(),
+    db.collection('staff').doc(target).get(),
+  ]);
+  if (isAdminAcct.exists || isStaffAcct.exists) {
+    throw new HttpsError('failed-precondition', 'That login belongs to a staff or admin account, not a customer.');
+  }
+
+  await purgeCustomerAccount(target, false);
   return { ok: true };
 });

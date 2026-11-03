@@ -331,7 +331,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
     if (!_agreedToTerms) {
-      setState(() => _error = "Please agree to the Terms of Service and Privacy Policy to continue.");
+      setState(() => _error = "Please read and accept the Terms and Conditions to create your account.");
       return;
     }
 
@@ -917,6 +917,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+  /// Ticking the box opens the full Terms and Conditions pop-up; it only
+  /// becomes ticked if the person reads to the end and taps "I Accept".
+  /// Tapping a ticked box simply un-ticks it.
+  Future<void> _onTermsTap() async {
+    if (_agreedToTerms) {
+      setState(() => _agreedToTerms = false);
+      return;
+    }
+    FocusScope.of(context).unfocus();
+    final accepted = await showTermsAcceptDialog(context);
+    if (!mounted) return;
+    setState(() {
+      _agreedToTerms = accepted;
+      if (accepted) _error = null;
+    });
+  }
+
   /// Required "I agree to the Terms of Service" checkbox — tapping the
   /// link opens the same [PolicyScreen] the Home screen's footer links
   /// to, so there's only one copy of the actual terms text to keep
@@ -930,10 +947,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           height: 22,
           child: Checkbox(
             value: _agreedToTerms,
-            onChanged: (v) => setState(() {
-              _agreedToTerms = v ?? false;
-              if (_agreedToTerms) _error = null;
-            }),
+            onChanged: (_) => _onTermsTap(),
             activeColor: AppColors.accent,
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
@@ -942,10 +956,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         const SizedBox(width: 10),
         Expanded(
           child: GestureDetector(
-            onTap: () => setState(() {
-              _agreedToTerms = !_agreedToTerms;
-              if (_agreedToTerms) _error = null;
-            }),
+            onTap: _onTermsTap,
             child: RichText(
               text: TextSpan(
                 style: TextStyle(fontSize: 13.5, color: AppPalette.textSecondary(context), height: 1.4),

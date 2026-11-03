@@ -1740,6 +1740,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           ),
                         ),
 
+                      if (c.accountIds.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: TextButton.icon(
+                            onPressed: () => _deleteCustomerAccount(sheetContext, c),
+                            style: TextButton.styleFrom(
+                              foregroundColor: danger,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            ),
+                            icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                            label: const Text('Delete account', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)),
+                          ),
+                        ),
+                      ],
+
                       const SizedBox(height: 20),
 
                       // Key numbers in one flat strip.
@@ -1903,6 +1920,43 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       TopToast.show(null, '${c.name} is now blocked.');
     } catch (_) {
       TopToast.show(null, "Couldn't block this customer. Check your connection and admin permissions.", kind: TopToastKind.error);
+    }
+  }
+
+  /// Permanently deletes a customer's login and personal data. Bookings and
+  /// payments stay on file for accounting. Asks for confirmation first.
+  Future<void> _deleteCustomerAccount(BuildContext sheetContext, CustomerSummary c) async {
+    final ok = await showDialog<bool>(
+      context: sheetContext,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Delete ${c.name}\'s account?'),
+        content: const Text(
+          "Their login, profile, chat history and saved GCash details will be erased, and they won't be able to sign in again. "
+          "Booking and payment records stay on file for accounting, without their name. This can't be undone.",
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFB3261E), foregroundColor: Colors.white),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      for (final uid in c.accountIds) {
+        await UserAccountRepository.deleteCustomerAccount(uid: uid, name: c.name);
+      }
+      if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+      TopToast.show(null, '${c.name}\'s account was deleted.');
+    } catch (e) {
+      TopToast.show(
+        null,
+        e.toString().replaceFirst('Exception: ', ''),
+        kind: TopToastKind.error,
+      );
     }
   }
 

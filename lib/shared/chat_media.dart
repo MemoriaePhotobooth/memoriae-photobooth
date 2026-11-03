@@ -7,6 +7,8 @@ import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatf
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'upload_limit.dart';
+
 /// Text stored on a message that is only a photo (no caption). Firestore
 /// rules require every message to have non-empty text, and this doubles as
 /// the inbox preview ("📷 Photo").
@@ -51,39 +53,28 @@ class ChatMedia {
   static Future<ChatPickedImage?> pickImage(BuildContext context, {bool centered = false}) async {
     ImageSource source = ImageSource.gallery;
     if (_hasCamera) {
-      final chosen = centered
-          ? await showAppModal<ImageSource>(
-              context,
-              maxWidth: 440,
-              builder: (ctx) => const _PhotoSourceSheet(centered: true),
-            )
-          : await showModalBottomSheet<ImageSource>(
-              context: context,
-              backgroundColor: Colors.transparent,
-              builder: (ctx) => const _PhotoSourceSheet(),
-            );
+      // Always a popup in the middle of the screen (never a bottom sheet).
+      final chosen = await showAppModal<ImageSource>(
+        context,
+        maxWidth: 440,
+        builder: (ctx) => const _PhotoSourceSheet(centered: true),
+      );
       if (chosen == null) return null;
       source = chosen;
     }
 
     try {
-      final picked = await ImagePicker().pickImage(
-        source: source,
-        imageQuality: 70,
-        maxWidth: 1280,
-        maxHeight: 1280,
-      );
+      final picked = await ImagePicker().pickImage(source: source);
       if (picked == null) return null;
-      final bytes = await picked.readAsBytes();
-      if (bytes.lengthInBytes > maxBytes) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('That photo is too large (${(bytes.lengthInBytes / 1024).round()} KB). Please pick a smaller one (max ${maxBytes ~/ 1024} KB).')),
-          );
-        }
-        return null;
+      // Up to 100 MB is accepted; the photo is then shrunk automatically so
+      // it fits in the database. Over 100 MB is rejected.
+      final prepared = await UploadLimit.prepare(picked, maxDimension: 1280, targetBytes: maxBytes, startQuality: 70);
+      return ChatPickedImage(bytes: prepared.bytes, mimeType: prepared.mimeType);
+    } on UploadTooLargeException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
       }
-      return ChatPickedImage(bytes: bytes, mimeType: _mimeFor(picked.name));
+      return null;
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Couldn't open the photo picker. Please try again.")));

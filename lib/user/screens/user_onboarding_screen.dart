@@ -1,3 +1,4 @@
+import '../../shared/centered_body.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -150,7 +151,7 @@ class _UserOnboardingScreenState extends State<UserOnboardingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppPalette.surface(context),
-      body: SafeArea(
+      body: CenteredBody(child: SafeArea(
         child: Column(
           children: [
             // Skip sits top-right; the space is kept on the last slide so the
@@ -257,7 +258,7 @@ class _UserOnboardingScreenState extends State<UserOnboardingScreen> {
             ),
           ],
         ),
-      ),
+      ), maxWidth: 560),
     );
   }
 }

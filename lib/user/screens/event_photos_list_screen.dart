@@ -1,3 +1,4 @@
+import '../../shared/centered_body.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -34,9 +35,9 @@ class EventPhotosListScreen extends StatelessWidget {
           style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppPalette.textPrimary(context)),
         ),
       ),
-      body: !signedIn
+      body: CenteredBody(child: !signedIn
           ? _message(context, Icons.lock_outline, 'Log in to see the photos from your events.')
-          : StreamBuilder<List<Map<String, dynamic>>>(
+          : StreamBuilder<List<Map<String), dynamic>>>(
               stream: BookingRepository.watchBookingsForUser(uid),
               builder: (context, snap) {
                 if (snap.hasError) {

@@ -1,3 +1,4 @@
+import '../../shared/centered_body.dart';
 import 'package:flutter/material.dart';
 
 import '../services/booking_hours.dart';
@@ -82,7 +83,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
         foregroundColor: AppPalette.textPrimary(context),
         title: Text('Help & Support', style: TextStyle(color: AppPalette.textPrimary(context), fontWeight: FontWeight.bold, fontSize: 16)),
       ),
-      body: SafeArea(
+      body: CenteredBody(child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
@@ -190,7 +191,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
             ],
           ],
         ),
-      ),
+      )),
     );
   }
 

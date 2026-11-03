@@ -1103,64 +1103,191 @@ class _HomeScreenState extends State<HomeScreen> {
         final date = ts is Timestamp ? ts.toDate() : null;
         final id = latest['id'] as String?;
 
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 20),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: color.withValues(alpha: 0.3)),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(refunded ? Icons.payments_rounded : (rescheduled ? Icons.event_repeat : (approved ? Icons.check_circle : Icons.cancel)), color: color, size: 26),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        refunded ? "Your refund was sent" : (rescheduled ? "Your schedule was moved" : (approved ? "You're approved! 🎉" : "Booking declined")),
-                        style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: AppPalette.textPrimary(context)),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        refunded
-                            ? "$packageName · ${formatPeso(refundAmount)} was sent to your GCash"
-                            : (date != null
-                                ? "$packageName · ${DateFormat('EEE, MMM d, yyyy').format(date)}${time.isEmpty ? '' : ' · $time'}"
-                                : packageName),
-                        style: TextStyle(fontSize: 12.5, color: AppPalette.textSecondary(context)),
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(builder: (_) => const MyBookingsScreen()),
-                              );
-                              if (id != null) BookingRepository.markNotificationSeen(id);
-                            },
-                            child: Text(
-                              "View My Bookings",
-                              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: color, decoration: TextDecoration.underline),
+        final Color gradLight = refunded
+            ? const Color(0xFF2FA36F)
+            : approved
+                ? const Color(0xFF43A047)
+                : rescheduled
+                    ? const Color(0xFF1E88E5)
+                    : const Color(0xFFD64545);
+        final Color gradDark = refunded
+            ? const Color(0xFF15603F)
+            : approved
+                ? const Color(0xFF1B5E20)
+                : rescheduled
+                    ? const Color(0xFF0D47A1)
+                    : const Color(0xFF8E1C1C);
+        final IconData statusIcon = refunded
+            ? Icons.payments_rounded
+            : (rescheduled ? Icons.event_repeat_rounded : (approved ? Icons.verified_rounded : Icons.cancel_rounded));
+        final String title = refunded
+            ? "Your refund was sent"
+            : (rescheduled ? "Your schedule was moved" : (approved ? "You're approved!" : "Booking declined"));
+        final String pill = refunded ? 'REFUNDED' : (rescheduled ? 'RESCHEDULED' : (approved ? 'CONFIRMED' : 'DECLINED'));
+        final String message = refunded
+            ? "${formatPeso(refundAmount)} was sent to your GCash."
+            : (rescheduled
+                ? "Your event was moved to a new date. Please check the details below."
+                : (approved
+                    ? "Your booking is confirmed. We can't wait to capture your moments!"
+                    : "Sorry, we couldn't accept this booking. Open My Bookings for details."));
+        final String? dateText = date != null ? DateFormat('EEE, MMM d, yyyy').format(date) : null;
+
+        Widget chip(IconData icon, String text) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(color: color.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(20)),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 14, color: color),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      text,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppPalette.textPrimary(context)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+
+        void dismiss() {
+          if (id != null) BookingRepository.markNotificationSeen(id);
+        }
+
+        void open() {
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MyBookingsScreen()));
+          dismiss();
+        }
+
+        return TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: 0, end: 1),
+          duration: const Duration(milliseconds: 450),
+          curve: Curves.easeOutCubic,
+          builder: (context, t, child) => Opacity(
+            opacity: t,
+            child: Transform.translate(offset: Offset(0, (1 - t) * 14), child: child),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 20),
+            child: Container(
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: AppPalette.cardBg(context),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: color.withValues(alpha: 0.25)),
+                boxShadow: [BoxShadow(color: color.withValues(alpha: 0.20), blurRadius: 24, offset: const Offset(0, 10))],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 12, 16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [gradLight, gradDark]),
+                    ),
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          right: -8,
+                          bottom: -22,
+                          child: Icon(statusIcon, size: 100, color: Colors.white.withValues(alpha: 0.10)),
+                        ),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 52,
+                              height: 52,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white.withValues(alpha: 0.20),
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
+                              ),
+                              child: Icon(statusIcon, color: Colors.white, size: 28),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.22), borderRadius: BorderRadius.circular(20)),
+                                    child: Text(
+                                      pill,
+                                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1, color: Colors.white),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    title,
+                                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.2),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: dismiss,
+                              child: Container(
+                                padding: const EdgeInsets.all(5),
+                                decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.18)),
+                                child: const Icon(Icons.close_rounded, size: 16, color: Colors.white),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          message,
+                          style: TextStyle(fontSize: 13, height: 1.45, color: AppPalette.textSecondary(context)),
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            chip(Icons.photo_camera_outlined, packageName),
+                            if (dateText != null) chip(Icons.event_outlined, dateText),
+                            if (time.isNotEmpty) chip(Icons.schedule_rounded, time),
+                            if (refunded && refundAmount > 0) chip(Icons.payments_outlined, formatPeso(refundAmount)),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        SizedBox(
+                          height: 44,
+                          child: ElevatedButton(
+                            onPressed: open,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: color,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: const StadiumBorder(),
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text('View My Bookings', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                SizedBox(width: 8),
+                                Icon(Icons.arrow_forward_rounded, size: 18),
+                              ],
                             ),
                           ),
-                        ],
-                      ),
-                    ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                GestureDetector(
-                  onTap: () {
-                    if (id != null) BookingRepository.markNotificationSeen(id);
-                  },
-                  child: Icon(Icons.close, size: 18, color: AppPalette.textMuted(context)),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );

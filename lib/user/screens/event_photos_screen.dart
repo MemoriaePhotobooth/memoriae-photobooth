@@ -1,3 +1,4 @@
+import '../../shared/centered_body.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -43,7 +44,7 @@ class EventPhotosScreen extends StatelessWidget {
         iconTheme: IconThemeData(color: AppPalette.textPrimary(context)),
         title: Text(title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppPalette.textPrimary(context))),
       ),
-      body: !signedIn
+      body: CenteredBody(child: !signedIn
           ? _message(context, Icons.lock_outline,
               "Sign in to your account to see your event photos.\nGuest bookings can't view them.")
           : StreamBuilder<List<EventPhoto>>(
@@ -95,7 +96,7 @@ class EventPhotosScreen extends StatelessWidget {
                   ],
                 );
               },
-            ),
+            )),
     );
   }
 
@@ -200,7 +201,7 @@ class _PhotoViewerState extends State<_PhotoViewer> {
     return Dialog(
       backgroundColor: Colors.black,
       insetPadding: const EdgeInsets.all(12),
-      child: Stack(
+      child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 760), child: Stack(
         children: [
           PageView.builder(
             controller: _controller,
@@ -265,7 +266,7 @@ class _PhotoViewerState extends State<_PhotoViewer> {
             ),
           ),
         ],
-      ),
+      )),
     );
   }
 }

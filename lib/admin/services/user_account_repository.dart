@@ -1,4 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+
+import 'activity_log_repository.dart';
 
 /// A customer account created through the User app's Register screen.
 class RegisteredAccount {
@@ -47,5 +50,18 @@ class UserAccountRepository {
       list.sort((a, b) => (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)));
       return list;
     });
+  }
+
+  /// Permanently deletes a customer's login and personal data through the
+  /// `adminDeleteCustomer` Cloud Function. Booking and payment records are
+  /// kept for accounting, detached from the account. Throws an [Exception]
+  /// with a message the admin can read.
+  static Future<void> deleteCustomerAccount({required String uid, required String name}) async {
+    try {
+      await FirebaseFunctions.instance.httpsCallable('adminDeleteCustomer').call<void>({'uid': uid});
+    } on FirebaseFunctionsException catch (e) {
+      throw Exception(e.message ?? "Couldn't delete this account. Please try again.");
+    }
+    await ActivityLogRepository.log(action: 'Deleted customer account', targetSummary: name);
   }
 }

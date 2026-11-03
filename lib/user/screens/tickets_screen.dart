@@ -1,3 +1,4 @@
+import '../../shared/centered_body.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -69,7 +70,7 @@ class _TicketsScreenState extends State<TicketsScreen> {
         foregroundColor: AppPalette.textPrimary(context),
         title: Text('Tickets', style: TextStyle(color: AppPalette.textPrimary(context), fontWeight: FontWeight.bold, fontSize: 16)),
       ),
-      body: SafeArea(
+      body: CenteredBody(child: SafeArea(
         child: _loadingUser
             ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
             : _uid == null
@@ -120,7 +121,7 @@ class _TicketsScreenState extends State<TicketsScreen> {
                       );
                     },
                   ),
-      ),
+      )),
     );
   }
 

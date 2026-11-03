@@ -1,4 +1,5 @@
 import '../../shared/top_toast.dart';
+import '../../shared/upload_limit.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -174,13 +175,6 @@ class _AdminBookingPhotosPageState extends State<_AdminBookingPhotosPage> {
     return isToday && (booking.status == 'confirmed' || booking.status == 'completed');
   }
 
-  String _mimeFor(String name) {
-    final n = name.toLowerCase();
-    if (n.endsWith('.png')) return 'image/png';
-    if (n.endsWith('.webp')) return 'image/webp';
-    return 'image/jpeg';
-  }
-
   void _snack(String msg) {
     if (!mounted) return;
     TopToast.show(context, msg);
@@ -190,7 +184,7 @@ class _AdminBookingPhotosPageState extends State<_AdminBookingPhotosPage> {
     if (_uploading) return;
     List<XFile> picked;
     try {
-      picked = await _picker.pickMultiImage(maxWidth: 1280, imageQuality: 65);
+      picked = await _picker.pickMultiImage();
     } catch (e) {
       _snack("Couldn't open your photos: $e");
       return;
@@ -204,14 +198,17 @@ class _AdminBookingPhotosPageState extends State<_AdminBookingPhotosPage> {
     });
     var queued = 0;
     var failed = 0;
+    var overLimit = 0;
     for (final file in picked) {
       try {
-        final bytes = await file.readAsBytes();
+        // Over 100 MB is rejected; anything smaller is accepted and shrunk
+        // automatically so it fits in the database.
+        final prepared = await UploadLimit.prepare(file, maxDimension: 1280, targetBytes: 600 * 1024, startQuality: 65);
         final write = EventPhotoRepository.add(
           bookingId: booking.id,
           userId: booking.userId,
-          bytes: bytes,
-          mime: _mimeFor(file.name),
+          bytes: prepared.bytes,
+          mime: prepared.mimeType,
         );
         try {
           await write.timeout(const Duration(seconds: 20));
@@ -220,6 +217,8 @@ class _AdminBookingPhotosPageState extends State<_AdminBookingPhotosPage> {
           queued++;
           write.catchError((_) => _snack("A photo failed to upload. Try adding it again."));
         }
+      } on UploadTooLargeException {
+        overLimit++;
       } catch (_) {
         failed++;
       }
@@ -228,11 +227,12 @@ class _AdminBookingPhotosPageState extends State<_AdminBookingPhotosPage> {
     }
     if (!mounted) return;
     setState(() => _uploading = false);
-    final ok = picked.length - queued - failed;
+    final ok = picked.length - queued - failed - overLimit;
     final parts = [
       "$ok uploaded",
       if (queued > 0) "$queued waiting for connection",
-      if (failed > 0) "$failed failed (too large or no connection)",
+      if (overLimit > 0) "$overLimit not accepted (over 100 MB)",
+      if (failed > 0) "$failed failed (no connection or unreadable photo)",
     ];
     _snack("${parts.join(', ')}.");
   }
