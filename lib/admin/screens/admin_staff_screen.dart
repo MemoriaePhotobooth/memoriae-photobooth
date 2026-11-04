@@ -643,6 +643,27 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
     return ok ?? false;
   }
 
+  Future<String?> _askName(BuildContext context, String current) async {
+    final controller = TextEditingController(text: current);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Edit name'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Name'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.of(dialogContext).pop(controller.text), child: const Text('Save')),
+        ],
+      ),
+    );
+    controller.dispose();
+    return result;
+  }
+
   Widget _actionsMenu(BuildContext context, StaffAccountRecord s, bool isAdmin) {
     final isMe = s.id == _myUid;
 
@@ -679,6 +700,7 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
       if (!s.active) {
         items.add(item('toggle_active', Icons.unarchive_outlined, 'Restore'));
       }
+      items.add(item('edit', Icons.edit_outlined, 'Edit name'));
       items.add(item('reset_password', Icons.lock_reset, 'Send password reset'));
       if (!(isAdmin && StaffRepository.protectAdminAccounts)) {
         items.add(const PopupMenuDivider());
@@ -714,6 +736,12 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
             break;
           case 'toggle_active':
             await _run(context, () => StaffRepository.setActive(s, true), success: '${s.name} restored');
+            break;
+          case 'edit':
+            final newName = await _askName(context, s.name);
+            if (newName != null && context.mounted) {
+              await _run(context, () => StaffRepository.updateName(s, newName), success: 'Name updated');
+            }
             break;
           case 'reset_password':
             await _run(context, () => StaffRepository.sendPasswordReset(s), success: 'Password reset email sent to ${s.email}');

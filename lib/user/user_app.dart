@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../shared/app_picker_theme.dart';
-import '../shared/cookie_consent.dart';
 import 'models/booth_package.dart';
 import 'models/camera_rental.dart';
 import 'theme/app_colors.dart';
@@ -17,7 +16,6 @@ import 'screens/my_bookings_screen.dart';
 import 'screens/user_splash_screen.dart';
 import 'screens/user_entry_screen.dart';
 import 'screens/user_onboarding_screen.dart';
-import 'screens/info_pages.dart';
 import 'services/auth_service.dart';
 import 'services/push_notification_service.dart';
 
@@ -121,20 +119,6 @@ class UserApp extends StatelessWidget {
               elevation: 6,
               actionTextColor: const Color(0xFFE0B24C),
             ),
-          ),
-          // Cookie notice floats above every screen until the visitor chooses.
-          builder: (context, child) => CookieConsentGate(
-            accent: AppColors.accent,
-            onViewPolicy: () => PushNotificationService.navigatorKey.currentState?.push(
-              MaterialPageRoute(
-                builder: (_) => const PolicyScreen(
-                  title: 'Privacy Policy',
-                  sections: kPrivacyPolicySections,
-                  lastUpdated: kPrivacyPolicyLastUpdated,
-                ),
-              ),
-            ),
-            child: child ?? const SizedBox.shrink(),
           ),
           initialRoute: '/welcome',
           onGenerateRoute: (settings) {

@@ -244,9 +244,9 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
 
   Future<void> _openNotifications({required bool isDesktop}) async {
     if (isDesktop) {
-      // Anchored dropdown near the sidebar's bell — fades/scales in from
-      // the top-left, like the reference design's notification popover,
-      // instead of sliding down from the top of the whole screen.
+      // Anchored dropdown under the top bar's bell — fades/scales in from
+      // the top-right, like the reference design's notification popover,
+      // instead of sliding up from the bottom of the whole screen.
       await showGeneralDialog<void>(
         context: context,
         barrierLabel: 'Notifications',
@@ -254,17 +254,13 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
         barrierColor: Colors.black.withValues(alpha: 0.05),
         transitionDuration: const Duration(milliseconds: 160),
         pageBuilder: (dialogContext, _, __) {
-          // Sits just right of the expanded sidebar card (16px page margin +
-          // card width + a small gap), top-aligned with it, instead of
-          // covering the sidebar's own icons.
-          final screen = MediaQuery.of(dialogContext).size;
-          final left = 16 + _StaffSidebar._expandedCard + 12;
-          final width = (screen.width - left - 16).clamp(320.0, 420.0).toDouble();
+          final screenWidth = MediaQuery.of(dialogContext).size.width;
+          final width = (screenWidth - _StaffSidebar.railWidth - 40).clamp(320.0, 420.0).toDouble();
           return SafeArea(
             child: Align(
-              alignment: Alignment.topLeft,
+              alignment: Alignment.topRight,
               child: Padding(
-                padding: EdgeInsets.only(top: 16, left: left),
+                padding: const EdgeInsets.only(top: 92, right: 20),
                 child: Material(
                   color: Colors.transparent,
                   child: SizedBox(
@@ -291,7 +287,7 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
             opacity: anim,
             child: ScaleTransition(
               scale: Tween<double>(begin: 0.96, end: 1).animate(CurvedAnimation(parent: anim, curve: Curves.easeOut)),
-              alignment: Alignment.topLeft,
+              alignment: Alignment.topRight,
               child: child,
             ),
           );
@@ -385,7 +381,21 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
                     // sidebar floats over the content on hover instead of
                     // pushing it.
                     const SizedBox(width: _StaffSidebar.railWidth),
-                    Expanded(child: _buildSectionArea(context, isDesktop: true)),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          _StaffTopBar(
+                            onSearchSubmitted: (q) => setState(() {
+                              _section = _StaffSection.bookings;
+                              _searchQuery = q;
+                              _searchController.text = q;
+                            }),
+                            onOpenNotifications: () => _openNotifications(isDesktop: true),
+                          ),
+                          Expanded(child: _buildSectionArea(context, isDesktop: true)),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
                 Positioned(
@@ -396,7 +406,6 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
                     section: _section,
                     onSelectSection: (s) => setState(() => _section = s),
                     onLogout: _logout,
-                    onOpenNotifications: () => _openNotifications(isDesktop: true),
                   ),
                 ),
                 // Hidden on the Messages section itself, so the same
@@ -450,6 +459,7 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
                                   icon: Icons.notifications_outlined,
                                   tooltip: "Notifications",
                                   trailingGap: 0,
+                                  badge: const _PendingCountBadge(),
                                   onTap: () => _openNotifications(isDesktop: false),
                                 ),
                               ],
@@ -1651,7 +1661,8 @@ class _WalkInButton extends StatelessWidget {
 
 class _NotificationBell extends StatelessWidget {
   final VoidCallback onTap;
-  const _NotificationBell({required this.onTap});
+  final Color iconColor;
+  const _NotificationBell({required this.onTap, this.iconColor = Colors.white});
 
   @override
   Widget build(BuildContext context) {
@@ -1672,12 +1683,192 @@ class _NotificationBell extends StatelessWidget {
                 isLabelVisible: count > 0,
                 label: Text('$count'),
                 backgroundColor: AppColors.highlight,
-                child: const Icon(Icons.notifications_outlined, color: Colors.white),
+                child: Icon(Icons.notifications_outlined, color: iconColor),
               ),
             );
           },
         );
       },
+    );
+  }
+}
+
+/// Small red/gold count of everything still waiting on staff (bookings to
+/// approve + rentals to acknowledge) — shown on the phone header's bell.
+class _PendingCountBadge extends StatelessWidget {
+  const _PendingCountBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<BookingRecord>>(
+      stream: BookingRepository.watchAllBookings(),
+      builder: (context, bookingSnap) {
+        final bookingCount = (bookingSnap.data ?? const <BookingRecord>[]).where((b) => b.status == 'pending_confirmation').length;
+        return StreamBuilder<List<CameraRentalRecord>>(
+          stream: CameraRentalRepository.watchAllRentals(),
+          builder: (context, rentalSnap) {
+            final rentalCount = (rentalSnap.data ?? const <CameraRentalRecord>[]).where((r) => !r.acknowledged).length;
+            final count = bookingCount + rentalCount;
+            if (count == 0) return const SizedBox.shrink();
+            return Container(
+              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+              padding: const EdgeInsets.symmetric(horizontal: 5),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: AppColors.highlight, borderRadius: BorderRadius.circular(999)),
+              child: Text(
+                count > 99 ? '99+' : '$count',
+                style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Colors.white, height: 1.1),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+/// Persistent top header bar for the desktop staff shell: global search,
+/// a live system-status badge, the notification bell (with its pending
+/// count) and a live clock — a floating rounded card above every section.
+class _StaffTopBar extends StatefulWidget {
+  final ValueChanged<String> onSearchSubmitted;
+  final VoidCallback onOpenNotifications;
+
+  const _StaffTopBar({required this.onSearchSubmitted, required this.onOpenNotifications});
+
+  @override
+  State<_StaffTopBar> createState() => _StaffTopBarState();
+}
+
+class _StaffTopBarState extends State<_StaffTopBar> {
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 20, 20, 0),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppPalette.cardBg(context),
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: AppShadows.soft,
+          border: Border.all(color: AppPalette.divider(context)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 560),
+                  child: TextField(
+                    controller: _searchController,
+                    onSubmitted: widget.onSearchSubmitted,
+                    textInputAction: TextInputAction.search,
+                    style: TextStyle(fontSize: 13, color: AppPalette.textPrimary(context)),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      hintText: "Search by Booking Ref, Customer Name, or Package...",
+                      hintStyle: TextStyle(fontSize: 12.5, color: AppPalette.textMuted(context)),
+                      prefixIcon: const Icon(Icons.search_rounded, size: 19, color: AppColors.accent),
+                      filled: true,
+                      fillColor: AppPalette.surface(context),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(999), borderSide: BorderSide.none),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            const _SystemStatusBadge(),
+            const SizedBox(width: 14),
+            _NotificationBell(onTap: widget.onOpenNotifications, iconColor: AppPalette.textPrimary(context)),
+            const SizedBox(width: 6),
+            const _LiveClock(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// "System Online" pill — real, not decorative: it reflects whether the
+/// bookings stream (the same one the whole dashboard depends on) is
+/// currently connected, not a hardcoded label.
+class _SystemStatusBadge extends StatelessWidget {
+  const _SystemStatusBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<BookingRecord>>(
+      stream: BookingRepository.watchAllBookings(),
+      builder: (context, snapshot) {
+        final online = !snapshot.hasError;
+        final color = online ? AppColors.success : const Color(0xFFDC2626);
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(999)),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 7, height: 7, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+              const SizedBox(width: 7),
+              Text(
+                online ? "System Online" : "Connection Issue",
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: color),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Small ticking date/time readout for the top bar. Self-contained so it
+/// doesn't force the rest of the header to rebuild every minute.
+class _LiveClock extends StatefulWidget {
+  const _LiveClock();
+
+  @override
+  State<_LiveClock> createState() => _LiveClockState();
+}
+
+class _LiveClockState extends State<_LiveClock> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(DateFormat('h:mm a').format(now), style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: AppPalette.textPrimary(context))),
+        Text(DateFormat('EEE, MMM d').format(now), style: TextStyle(fontSize: 10, color: AppPalette.textMuted(context))),
+      ],
     );
   }
 }
@@ -1695,13 +1886,11 @@ class _StaffSidebar extends StatefulWidget {
   final _StaffSection section;
   final ValueChanged<_StaffSection> onSelectSection;
   final VoidCallback onLogout;
-  final Future<void> Function() onOpenNotifications;
 
   const _StaffSidebar({
     required this.section,
     required this.onSelectSection,
     required this.onLogout,
-    required this.onOpenNotifications,
   });
 
   @override
@@ -1715,21 +1904,7 @@ class _StaffSidebarState extends State<_StaffSidebar> {
   // Keeps the sidebar open while the profile popup menu is showing (the
   // popup's barrier would otherwise count as the cursor leaving).
   bool _menuOpen = false;
-  // Same for the notifications popover: its barrier sits on top of the
-  // sidebar, which used to make the sidebar collapse (and the bell vanish)
-  // the moment the popover opened.
-  bool _notifOpen = false;
-
-  bool get _expanded => _hovering || _menuOpen || _notifOpen;
-
-  Future<void> _openNotifications() async {
-    setState(() => _notifOpen = true);
-    try {
-      await widget.onOpenNotifications();
-    } finally {
-      if (mounted) setState(() => _notifOpen = false);
-    }
-  }
+  bool get _expanded => _hovering || _menuOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -1806,7 +1981,6 @@ class _StaffSidebarState extends State<_StaffSidebar> {
                                                   ],
                                                 ),
                                               ),
-                                              _NotificationBell(onTap: _openNotifications),
                                             ],
                                           ),
                                         ),

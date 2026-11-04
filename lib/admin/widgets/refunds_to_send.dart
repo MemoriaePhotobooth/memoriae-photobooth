@@ -7,6 +7,7 @@ import '../models/booking_record.dart';
 import '../services/booking_repository.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_palette.dart';
+import 'refund_sent_dialog.dart';
 
 String _peso(int v) => '₱${NumberFormat('#,##0').format(v)}';
 
@@ -17,7 +18,7 @@ String _peso(int v) => '₱${NumberFormat('#,##0').format(v)}';
 /// [onMarkRefunded] is supplied by the dashboard so the Staff app can
 /// attribute the refund to the signed-in staff member.
 class RefundsToSendBanner extends StatelessWidget {
-  final Future<void> Function(BookingRecord booking) onMarkRefunded;
+  final Future<void> Function(BookingRecord booking, String reference) onMarkRefunded;
   final EdgeInsetsGeometry padding;
   const RefundsToSendBanner({super.key, required this.onMarkRefunded, this.padding = EdgeInsets.zero});
 
@@ -70,10 +71,10 @@ class RefundsToSendBanner extends StatelessWidget {
 /// Bottom sheet listing every refund still to be sent, with a
 /// "Mark refunded" button per row.
 class RefundsToSendSheet extends StatefulWidget {
-  final Future<void> Function(BookingRecord booking) onMarkRefunded;
+  final Future<void> Function(BookingRecord booking, String reference) onMarkRefunded;
   const RefundsToSendSheet({super.key, required this.onMarkRefunded});
 
-  static Future<void> show(BuildContext context, {required Future<void> Function(BookingRecord booking) onMarkRefunded}) {
+  static Future<void> show(BuildContext context, {required Future<void> Function(BookingRecord booking, String reference) onMarkRefunded}) {
     return showAppModal<void>(
       context,
       maxWidth: 560,
@@ -89,28 +90,11 @@ class _RefundsToSendSheetState extends State<RefundsToSendSheet> {
   final Set<String> _busy = {};
 
   Future<void> _mark(BookingRecord b) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text("Mark refund as sent?"),
-        content: Text(
-          "Confirm you've already sent ${_peso(b.refundAmount)} back to the customer by GCash.",
-          style: const TextStyle(fontSize: 13),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text("Not yet")),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.accent),
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text("Yes, sent"),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
+    final reference = await RefundSentDialog.show(context, amount: b.refundAmount);
+    if (reference == null) return;
     setState(() => _busy.add(b.id));
     try {
-      await widget.onMarkRefunded(b);
+      await widget.onMarkRefunded(b, reference);
     } catch (e) {
       if (mounted) {
         TopToast.show(context, "Couldn't update refund: $e", kind: TopToastKind.error);
@@ -290,6 +274,10 @@ class RefundStatusCard extends StatelessWidget {
               '${(b.refundedByStaffName ?? '').isNotEmpty ? ' by ${b.refundedByStaffName}' : ''}',
               style: TextStyle(fontSize: 12, color: AppPalette.textMuted(context)),
             ),
+          ],
+          if (b.refundStatus == 'refunded' && b.refundReference.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            SelectableText('GCash ref no. ${b.refundReference}', style: TextStyle(fontSize: 12, color: AppPalette.textMuted(context))),
           ],
           if (b.retainedAmount > 0) ...[
             const SizedBox(height: 6),

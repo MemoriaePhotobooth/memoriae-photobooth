@@ -5,7 +5,6 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -481,10 +480,21 @@ class AuthService {
     return _fromDoc(uid, data);
   }
 
-  /// Permanently deletes the signed-in customer's account. The password is
-  /// re-checked first (Firebase requires a recent login for this), then the
-  /// `deleteMyAccount` Cloud Function removes the data and the login itself.
-  /// Throws an [Exception] with a message the user can read.
+  /// Permanently deletes the signed-in customer's account, entirely from the
+  /// app (no Cloud Function, so it works on the free Spark plan).
+  ///
+  /// 1. The password is re-checked (Firebase requires a recent login).
+  /// 2. Refuses while a booking is waiting for review/payment, a refund
+  ///    request is open, or a camera is still out.
+  /// 3. Erases what the Firestore rules let a customer erase: their chat
+  ///    messages and photos, their email-index entry and their profile.
+  /// 4. Deletes the login itself, last (after this the app can no longer
+  ///    touch Firestore as this user, which is why it comes last).
+  ///
+  /// Booking, rental, review and refund records stay on file for the
+  /// studio's accounting - the rules don't let a customer edit those.
+  /// Safe to retry: every step can run again if an earlier attempt stopped
+  /// halfway. Throws an [Exception] with a message the user can read.
   Future<void> deleteAccount({required String password}) async {
     final user = _auth.currentUser;
     final email = user?.email;
@@ -501,23 +511,76 @@ class AuthService {
       throw Exception(wrong ? 'That password is incorrect.' : "Couldn't verify your password. Please try again.");
     }
 
-    try {
-      await FirebaseFunctions.instance.httpsCallable('deleteMyAccount').call<void>();
-    } on FirebaseFunctionsException catch (e) {
-      throw Exception(e.message ?? "Couldn't delete your account. Please try again.");
+    final uid = user.uid;
+    final db = FirebaseFirestore.instance;
+
+    Future<bool> any(Query<Map<String, dynamic>> q) async => (await q.limit(1).get()).docs.isNotEmpty;
+
+    Future<void> deleteAll(Query<Map<String, dynamic>> q) async {
+      final docs = (await q.get()).docs;
+      for (var i = 0; i < docs.length; i += 400) {
+        final batch = db.batch();
+        for (final d in docs.skip(i).take(400)) {
+          batch.delete(d.reference);
+        }
+        await batch.commit();
+      }
     }
 
-    // The account is gone on the server. Clean up this phone too.
     try {
-      await PushNotificationService.instance.removeToken();
-    } catch (_) {
-      // The profile doc is already gone, so there is nothing to remove.
+      // Same safety checks the studio relies on before an account goes away.
+      for (final status in const ['pending_confirmation', 'awaiting_receipt']) {
+        if (await any(db.collection('bookings').where('userId', isEqualTo: uid).where('status', isEqualTo: status))) {
+          throw Exception("You have a booking still waiting for review or payment. Please wait until it's settled, then try again.");
+        }
+      }
+      if (await any(db.collection('refundRequests').where('userId', isEqualTo: uid).where('status', isEqualTo: 'open'))) {
+        throw Exception('You have a refund request still open. Please wait for the studio to finish it, then try again.');
+      }
+      if (await any(db.collection('cameraRentals').where('userId', isEqualTo: uid).where('returnedAt', isEqualTo: null))) {
+        throw Exception('You still have a camera rental that has not been returned. Please return it, then try again.');
+      }
+
+      // Stop push notifications to this phone while the profile still exists.
+      try {
+        await PushNotificationService.instance.removeToken();
+      } catch (_) {}
+
+      // The customer's own side of the chat (the studio's replies stay).
+      await deleteAll(db.collection('messages').where('userId', isEqualTo: uid).where('fromStaff', isEqualTo: false));
+      await deleteAll(db.collection('messageImages').where('userId', isEqualTo: uid).where('fromStaff', isEqualTo: false));
+
+      // Frees the email so it can register again. Best-effort: it needs the
+      // `emailIndex` delete rule from firestore.rules to be published.
+      try {
+        await db.collection('emailIndex').doc(email.trim().toLowerCase()).delete();
+      } catch (_) {}
+
+      await db.collection('users').doc(uid).delete();
+    } on FirebaseException catch (e) {
+      throw Exception(
+        e.code == 'permission-denied'
+            ? "We couldn't erase your data (permission denied), so your account was not deleted. Please message the studio."
+            : "Couldn't delete your account right now. Please check your connection and try again.",
+      );
     }
+
+    try {
+      await user.delete();
+    } on fb.FirebaseAuthException catch (e) {
+      throw Exception(
+        e.code == 'requires-recent-login'
+            ? 'For your security, please log in again and then delete your account.'
+            : "Your data was erased but we couldn't remove your login. Please try deleting your account again.",
+      );
+    }
+
+    // The account is gone. Clean up this phone too.
     await LocalDb.instance.clearUserData();
     try {
       await _auth.signOut();
     } catch (_) {
-      // Already signed out by the server-side deletion.
+      // Already signed out by the deletion.
     }
     photo.value = null;
   }

@@ -72,9 +72,7 @@ class AppBottomNav extends StatelessWidget {
             constraints: const BoxConstraints(maxWidth: 440),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(40),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                child: Container(
+              child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   decoration: BoxDecoration(
                     color: AppPalette.navGlass(context),
@@ -106,7 +104,6 @@ class AppBottomNav extends StatelessWidget {
                     },
                   ),
                 ),
-              ),
             ),
           ),
         ),

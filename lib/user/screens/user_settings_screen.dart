@@ -1,4 +1,3 @@
-import '../../shared/centered_body.dart';
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
@@ -162,7 +161,7 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
           style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppPalette.textPrimary(context)),
         ),
       ),
-      body: CenteredBody(child: ListView(
+      body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
         children: [
           _section('Preferences', [
@@ -251,7 +250,7 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
               ),
             ),
         ],
-      )),
+      ),
     );
   }
 }

@@ -111,14 +111,19 @@ class _AdminFeedbackScreenState extends State<AdminFeedbackScreen> {
   Widget _summaryCard(BuildContext context, List<FeedbackRecord> feedback, double avg) {
     final counts = {for (var r = 5; r >= 1; r--) r: feedback.where((f) => f.rating == r).length};
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: AppPalette.surface(context), borderRadius: BorderRadius.circular(18)),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppPalette.cardBg(context),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppPalette.divider(context)),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4))],
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Column(
             children: [
-              Text(avg.toStringAsFixed(1), style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppPalette.textPrimary(context))),
+              Text(avg.toStringAsFixed(1), style: const TextStyle(fontSize: 38, fontWeight: FontWeight.w800, color: AppColors.accent)),
               const SizedBox(height: 2),
               _stars(avg.round(), size: 14),
               const SizedBox(height: 4),
@@ -177,140 +182,205 @@ class _AdminFeedbackScreenState extends State<AdminFeedbackScreen> {
     );
   }
 
-  Widget _feedbackCard(BuildContext context, FeedbackRecord f) {
-    return Opacity(
-      opacity: f.hidden ? 0.65 : 1,
-      child: Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+  Widget _pill(BuildContext context, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: AppPalette.cardBg(context),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppPalette.divider(context)),
+        color: AppPalette.divider(context),
+        borderRadius: BorderRadius.circular(999),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: AppColors.accentTint(0.12),
-                child: Text(
-                  f.customerName.isNotEmpty ? f.customerName[0].toUpperCase() : '?',
-                  style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold, fontSize: 13),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, letterSpacing: 0.3, color: AppPalette.textMuted(context)),
+      ),
+    );
+  }
+
+  Widget _feedbackCard(BuildContext context, FeedbackRecord f) {
+    final muted = AppPalette.textMuted(context);
+    final primary = AppPalette.textPrimary(context);
+    final initial = f.customerName.trim().isNotEmpty ? f.customerName.trim()[0].toUpperCase() : '?';
+
+    return Opacity(
+      opacity: f.hidden ? 0.6 : 1,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.fromLTRB(18, 16, 16, 12),
+        decoration: BoxDecoration(
+          color: AppPalette.cardBg(context),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppPalette.divider(context)),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4)),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header: avatar, name + package, stars and date.
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [AppColors.accent, AppColors.accent.withValues(alpha: 0.65)],
+                    ),
+                  ),
+                  child: Text(initial, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(f.customerName, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppPalette.textPrimary(context))),
-                        ),
-                        if (f.hidden) ...[
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                            decoration: BoxDecoration(color: AppPalette.divider(context), borderRadius: BorderRadius.circular(999)),
-                            child: Text('Hidden', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: AppPalette.textMuted(context))),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              f.customerName,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: primary),
+                            ),
+                          ),
+                          if (f.hidden) ...[const SizedBox(width: 8), _pill(context, 'HIDDEN')],
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(Icons.photo_camera_outlined, size: 12, color: muted),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              f.packageName,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 11.5, color: muted),
+                            ),
                           ),
                         ],
-                      ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    _stars(f.rating, size: 14),
+                    const SizedBox(height: 4),
+                    Text(DateFormat('MMM d, yyyy').format(f.createdAt), style: TextStyle(fontSize: 10.5, color: muted)),
+                  ],
+                ),
+              ],
+            ),
+
+            // Comment, shown as a quote.
+            if (f.comment.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                decoration: BoxDecoration(
+                  color: AppPalette.surface(context),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.format_quote_rounded, size: 20, color: AppColors.accent.withValues(alpha: 0.5)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        f.comment,
+                        style: TextStyle(fontSize: 13, height: 1.45, color: AppPalette.textSecondary(context)),
+                      ),
                     ),
-                    const SizedBox(height: 1),
-                    Text(f.packageName, style: TextStyle(fontSize: 11, color: AppPalette.textMuted(context))),
                   ],
                 ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  _stars(f.rating, size: 13),
-                  const SizedBox(height: 3),
-                  Text(DateFormat('MMM d, yyyy').format(f.createdAt), style: TextStyle(fontSize: 10, color: AppPalette.textMuted(context))),
-                ],
-              ),
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                tooltip: f.hidden ? 'Show to customers' : 'Hide from customers',
-                icon: Icon(f.hidden ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 18, color: AppPalette.textMuted(context)),
-                onPressed: () => _toggleHidden(context, f),
-              ),
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
-                onPressed: () => _confirmDelete(context, f),
+            ],
+
+            // Admin reply, if any.
+            if (f.adminReply.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
+                decoration: BoxDecoration(
+                  color: AppColors.accentTint(0.07),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border(left: BorderSide(color: AppColors.accent.withValues(alpha: 0.6), width: 3)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.reply_rounded, size: 16, color: AppColors.accent),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            f.adminReplyAt == null
+                                ? 'Your reply'
+                                : 'Your reply · ${DateFormat('MMM d, yyyy').format(f.adminReplyAt!)}',
+                            style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: AppColors.accent),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            f.adminReply,
+                            style: TextStyle(fontSize: 12.5, height: 1.4, color: AppPalette.textPrimary(context)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      tooltip: 'Edit reply',
+                      icon: Icon(Icons.edit_outlined, size: 16, color: muted),
+                      onPressed: () => _replyDialog(context, f),
+                    ),
+                  ],
+                ),
               ),
             ],
-          ),
-          if (f.comment.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppPalette.surface(context),
-                borderRadius: BorderRadius.circular(10),
-                border: const Border(left: BorderSide(color: AppColors.accent, width: 3)),
-              ),
-              child: Text(
-                f.comment,
-                style: TextStyle(fontSize: 13, color: AppPalette.textSecondary(context), fontStyle: FontStyle.italic, height: 1.4),
-              ),
+
+            // Actions, grouped at the bottom.
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                if (f.adminReply.isEmpty)
+                  TextButton.icon(
+                    onPressed: () => _replyDialog(context, f),
+                    style: TextButton.styleFrom(foregroundColor: AppColors.accent, padding: const EdgeInsets.symmetric(horizontal: 8)),
+                    icon: const Icon(Icons.reply_rounded, size: 16),
+                    label: const Text('Reply', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                  ),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: () => _toggleHidden(context, f),
+                  style: TextButton.styleFrom(foregroundColor: muted, padding: const EdgeInsets.symmetric(horizontal: 8)),
+                  icon: Icon(f.hidden ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 16),
+                  label: Text(f.hidden ? 'Show' : 'Hide', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: 'Remove review',
+                  icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Colors.redAccent),
+                  onPressed: () => _confirmDelete(context, f),
+                ),
+              ],
             ),
           ],
-          const SizedBox(height: 10),
-          if (f.adminReply.isNotEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
-              decoration: BoxDecoration(
-                color: AppColors.accentTint(0.08),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.reply_rounded, size: 16, color: AppColors.accent),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          f.adminReplyAt == null ? 'Your reply' : 'Your reply · ${DateFormat('MMM d, yyyy').format(f.adminReplyAt!)}',
-                          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppColors.accent),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(f.adminReply, style: TextStyle(fontSize: 12.5, height: 1.4, color: AppPalette.textPrimary(context))),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    visualDensity: VisualDensity.compact,
-                    tooltip: 'Edit reply',
-                    icon: Icon(Icons.edit_outlined, size: 16, color: AppPalette.textMuted(context)),
-                    onPressed: () => _replyDialog(context, f),
-                  ),
-                ],
-              ),
-            )
-          else
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: () => _replyDialog(context, f),
-                style: TextButton.styleFrom(foregroundColor: AppColors.accent, padding: const EdgeInsets.symmetric(horizontal: 8)),
-                icon: const Icon(Icons.reply_rounded, size: 16),
-                label: const Text('Reply', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-              ),
-            ),
-        ],
+        ),
       ),
-    ),
     );
   }
 

@@ -79,6 +79,10 @@ class BookingRecord {
   final DateTime? refundedAt;
   final String? refundedByStaffName;
 
+  /// GCash reference number the sender entered when marking the refund as
+  /// sent — the proof of payment if the customer ever disputes it.
+  final String refundReference;
+
   /// Reschedule trail — set when staff/admin moves this booking to a new
   /// date/time (see `BookingRepository.rescheduleBooking`).
   final DateTime? previousDate;
@@ -129,6 +133,7 @@ class BookingRecord {
     this.refundNote = '',
     this.refundedAt,
     this.refundedByStaffName,
+    this.refundReference = '',
     this.previousDate,
     this.previousTime,
     this.rescheduledAt,
@@ -235,6 +240,7 @@ class BookingRecord {
       refundNote: (d['refundNote'] ?? '') as String,
       refundedAt: _asDateOrNull(d['refundedAt']),
       refundedByStaffName: d['refundedByStaffName'] as String?,
+      refundReference: (d['refundReference'] ?? '') as String,
       previousDate: _asDateOrNull(d['previousDate']),
       previousTime: d['previousTime'] as String?,
       rescheduledAt: _asDateOrNull(d['rescheduledAt']),
@@ -286,6 +292,7 @@ class BookingRecord {
       refundNote: refundNote,
       refundedAt: refundedAt,
       refundedByStaffName: refundedByStaffName,
+      refundReference: refundReference,
       previousDate: previousDate,
       previousTime: previousTime,
       rescheduledAt: rescheduledAt,

@@ -1,4 +1,3 @@
-import '../../shared/centered_body.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,6 +12,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_palette.dart';
 import '../widgets/circle_back_button.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/stream_once.dart';
 
 /// Profile → Payment Methods.
 ///
@@ -156,7 +156,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
         foregroundColor: AppPalette.textPrimary(context),
         title: Text('Payment Methods', style: TextStyle(color: AppPalette.textPrimary(context), fontWeight: FontWeight.bold, fontSize: 16)),
       ),
-      body: CenteredBody(child: SafeArea(
+      body: SafeArea(
         child: _loading
             ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
             : ListView(
@@ -169,7 +169,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                   _history(context),
                 ],
               ),
-      )),
+      ),
     );
   }
 
@@ -374,8 +374,9 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
         if (uid == null)
           _card(context, child: Text('No payments yet.', style: TextStyle(fontSize: 13, color: AppPalette.textSecondary(context))))
         else
-          StreamBuilder<List<Map<String, dynamic>>>(
-            stream: BookingRepository.watchBookingsForUser(uid),
+          StreamOnce<List<Map<String, dynamic>>>(
+            create: () => BookingRepository.watchBookingsForUser(uid),
+            identity: uid,
             builder: (context, snap) {
               if (!snap.hasData) {
                 return const Padding(

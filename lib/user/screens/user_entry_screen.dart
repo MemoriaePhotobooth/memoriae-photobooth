@@ -64,9 +64,6 @@ class _UserEntryScreenState extends State<UserEntryScreen> with SingleTickerProv
   Widget build(BuildContext context) {
     final height = MediaQuery.sizeOf(context).height;
     final logoSize = (height * 0.17).clamp(90.0, 150.0);
-    // On a wide window (desktop browser) the panel is a card in the middle of
-    // the page instead of a sheet stuck to the bottom edge.
-    final wide = MediaQuery.sizeOf(context).width >= 700;
 
     return Scaffold(
       backgroundColor: AppColors.forest900,
@@ -83,9 +80,8 @@ class _UserEntryScreenState extends State<UserEntryScreen> with SingleTickerProv
                 child: SlideTransition(
                   position: _slide,
                   child: Column(
-                    mainAxisAlignment: wide ? MainAxisAlignment.center : MainAxisAlignment.start,
                     children: [
-                      if (!wide) const Spacer(flex: 2),
+                      const Spacer(flex: 2),
                       Container(
                         width: logoSize,
                         height: logoSize,
@@ -107,13 +103,13 @@ class _UserEntryScreenState extends State<UserEntryScreen> with SingleTickerProv
                         'PHOTOBOOTH & CAMERA RENTAL',
                         style: TextStyle(fontSize: 10.5, letterSpacing: 3, color: Colors.white.withValues(alpha: 0.55)),
                       ),
-                      if (wide) const SizedBox(height: 36) else const Spacer(flex: 2),
+                      const Spacer(flex: 2),
                       Container(
                         width: double.infinity,
-                        padding: EdgeInsets.fromLTRB(24, 26, 24, wide ? 22 : 16 + MediaQuery.paddingOf(context).bottom),
-                        decoration: BoxDecoration(
+                        padding: EdgeInsets.fromLTRB(24, 26, 24, 16 + MediaQuery.paddingOf(context).bottom),
+                        decoration: const BoxDecoration(
                           color: Colors.white,
-                          borderRadius: wide ? BorderRadius.circular(32) : const BorderRadius.vertical(top: Radius.circular(32)),
+                          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
                         ),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,

@@ -21,6 +21,7 @@ import 'login_screen.dart';
 import 'register_screen.dart';
 import '../widgets/circle_back_button.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/stream_once.dart';
 
 /// Port of the default-exported `PhotoboothBooking` component.
 ///
@@ -424,7 +425,7 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
                                 height: 44,
                                 clipBehavior: Clip.antiAlias,
                                 decoration: ShapeDecoration(shape: ContinuousRectangleBorder(borderRadius: BorderRadius.circular(22))),
-                                child: Image.memory(heroBytes, fit: BoxFit.cover),
+                                child: Image.memory(heroBytes, fit: BoxFit.cover, cacheWidth: 132),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -467,8 +468,9 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _sectionCard(context, StreamBuilder<Set<DateTime>>(
-                            stream: BookingRepository.watchBookedDates(ignoreBookingId: _holdId),
+                          _sectionCard(context, StreamOnce<Set<DateTime>>(
+                            create: () => BookingRepository.watchBookedDates(ignoreBookingId: _holdId),
+                            identity: _holdId,
                             builder: (context, snapshot) {
                               return DateSelector(
                                 selectedDate: _selectedDate,
@@ -488,8 +490,8 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
                           const SizedBox(height: 16),
                           _sectionCard(context, _buildLocationSection(context)),
                           const SizedBox(height: 16),
-                          _sectionCard(context, StreamBuilder<List<BoothPackage>>(
-                            stream: PricingRepository.watchPackages(),
+                          _sectionCard(context, StreamOnce<List<BoothPackage>>(
+                            create: () => PricingRepository.watchPackages(),
                             builder: (context, snapshot) {
                               final packages = (snapshot.data == null || snapshot.data!.isEmpty) ? kPackages : snapshot.data!;
                               return PackageSelector(

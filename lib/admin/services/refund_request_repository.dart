@@ -8,6 +8,8 @@ class RefundRequest {
   final String reason;
   final String status; // open | approved | declined
   final DateTime? createdAt;
+  final DateTime? decidedAt;
+  final String decisionNote;
 
   const RefundRequest({
     required this.id,
@@ -16,6 +18,8 @@ class RefundRequest {
     required this.reason,
     required this.status,
     required this.createdAt,
+    this.decidedAt,
+    this.decisionNote = '',
   });
 
   factory RefundRequest.fromDoc(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
@@ -28,6 +32,8 @@ class RefundRequest {
       reason: (d['reason'] ?? '') as String,
       status: (d['status'] ?? 'open') as String,
       createdAt: ts is Timestamp ? ts.toDate() : null,
+      decidedAt: d['decidedAt'] is Timestamp ? (d['decidedAt'] as Timestamp).toDate() : null,
+      decisionNote: (d['decisionNote'] ?? '') as String,
     );
   }
 }
@@ -45,6 +51,17 @@ class RefundRequestRepository {
       final list = snap.docs.map(RefundRequest.fromDoc).toList();
       final now = DateTime.now();
       list.sort((a, b) => (b.createdAt ?? now).compareTo(a.createdAt ?? now));
+      return list;
+    });
+  }
+
+  /// Requests already decided ([status] is `approved` or `declined`), most
+  /// recently decided first. Also a single equality filter.
+  static Stream<List<RefundRequest>> watchDecided(String status) {
+    return _col.where('status', isEqualTo: status).snapshots().map((snap) {
+      final list = snap.docs.map(RefundRequest.fromDoc).toList();
+      DateTime when(RefundRequest r) => r.decidedAt ?? r.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      list.sort((a, b) => when(b).compareTo(when(a)));
       return list;
     });
   }

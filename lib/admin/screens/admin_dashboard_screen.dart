@@ -14,6 +14,7 @@ import '../models/customer_summary.dart';
 import '../services/activity_filter.dart';
 import '../widgets/refunds_to_send.dart';
 import '../widgets/refund_decision_dialog.dart';
+import '../widgets/refund_sent_dialog.dart';
 import '../models/camera_rental_record.dart';
 import '../models/feedback_record.dart';
 import '../models/pos_transaction_record.dart';
@@ -865,7 +866,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ),
               RefundsToSendBanner(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                onMarkRefunded: (b) => BookingRepository.markRefunded(b.id),
+                onMarkRefunded: (b, reference) => BookingRepository.markRefunded(b.id, reference: reference),
               ),
               if (bookings.isNotEmpty)
                 Padding(
@@ -920,7 +921,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             if (selectToolbar != null) selectToolbar,
             RefundsToSendBanner(
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-              onMarkRefunded: (b) => BookingRepository.markRefunded(b.id),
+              onMarkRefunded: (b, reference) => BookingRepository.markRefunded(b.id, reference: reference),
             ),
             if (bookings.isNotEmpty)
               Padding(
@@ -1740,23 +1741,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           ),
                         ),
 
-                      if (c.accountIds.isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          width: double.infinity,
-                          child: TextButton.icon(
-                            onPressed: () => _deleteCustomerAccount(sheetContext, c),
-                            style: TextButton.styleFrom(
-                              foregroundColor: danger,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            ),
-                            icon: const Icon(Icons.delete_outline_rounded, size: 16),
-                            label: const Text('Delete account', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)),
-                          ),
-                        ),
-                      ],
-
                       const SizedBox(height: 20),
 
                       // Key numbers in one flat strip.
@@ -1920,43 +1904,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       TopToast.show(null, '${c.name} is now blocked.');
     } catch (_) {
       TopToast.show(null, "Couldn't block this customer. Check your connection and admin permissions.", kind: TopToastKind.error);
-    }
-  }
-
-  /// Permanently deletes a customer's login and personal data. Bookings and
-  /// payments stay on file for accounting. Asks for confirmation first.
-  Future<void> _deleteCustomerAccount(BuildContext sheetContext, CustomerSummary c) async {
-    final ok = await showDialog<bool>(
-      context: sheetContext,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('Delete ${c.name}\'s account?'),
-        content: const Text(
-          "Their login, profile, chat history and saved GCash details will be erased, and they won't be able to sign in again. "
-          "Booking and payment records stay on file for accounting, without their name. This can't be undone.",
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFB3261E), foregroundColor: Colors.white),
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    try {
-      for (final uid in c.accountIds) {
-        await UserAccountRepository.deleteCustomerAccount(uid: uid, name: c.name);
-      }
-      if (sheetContext.mounted) Navigator.of(sheetContext).pop();
-      TopToast.show(null, '${c.name}\'s account was deleted.');
-    } catch (e) {
-      TopToast.show(
-        null,
-        e.toString().replaceFirst('Exception: ', ''),
-        kind: TopToastKind.error,
-      );
     }
   }
 
@@ -4403,9 +4350,11 @@ class _BookingDetailPaneState extends State<_BookingDetailPane> {
   }
 
   Future<void> _markRefunded() async {
+    final reference = await RefundSentDialog.show(context, amount: _current.refundAmount);
+    if (reference == null || !mounted) return;
     setState(() => _updating = true);
     try {
-      await BookingRepository.markRefunded(_current.id);
+      await BookingRepository.markRefunded(_current.id, reference: reference);
       if (!mounted) return;
       TopToast.show(context, "Refund marked as sent.");
     } catch (e) {
@@ -4706,21 +4655,17 @@ class _BookingDetailPaneState extends State<_BookingDetailPane> {
                   spacing: 10,
                   runSpacing: 10,
                   children: [
-                    _statusButton(context, "Approve", "confirmed", icon: Icons.check_circle_rounded, color: AppColors.accent, filled: true),
-                    _statusButton(context, "Reject", "cancelled", icon: Icons.cancel_rounded, color: const Color(0xFFDC2626)),
-                    _statusButton(context, "Mark Completed", "completed", icon: Icons.task_alt_rounded, color: AppColors.success),
-                    if (BookingRepository.canReschedule(b.status))
-                      OutlinedButton.icon(
-                        onPressed: _updating ? null : _openReschedule,
-                        icon: const Icon(Icons.edit_calendar_outlined, size: 16),
-                        label: const Text("Reschedule"),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF1565C0),
-                          side: const BorderSide(color: Color(0xFF1565C0)),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        ),
-                      ),
+                    // Only the actions that make sense for the current status.
+                    if (b.status == 'pending_confirmation' || b.status == 'awaiting_receipt') ...[
+                      _statusButton(context, "Approve", "confirmed", icon: Icons.check_circle_rounded, color: AppColors.accent, filled: true),
+                      _statusButton(context, "Reject", "cancelled", icon: Icons.cancel_rounded, color: const Color(0xFFDC2626)),
+                    ],
+                    if (b.status == 'confirmed') ...[
+                      // Only after the event's start time has passed.
+                      if (eventHasStarted(b.date, b.time))
+                        _statusButton(context, "Mark Completed", "completed", icon: Icons.task_alt_rounded, color: AppColors.success),
+                      _statusButton(context, "Reject", "cancelled", icon: Icons.cancel_rounded, color: const Color(0xFFDC2626)),
+                    ],
                     if (b.hasBalance && b.status != 'cancelled' && b.status != 'awaiting_receipt')
                       OutlinedButton.icon(
                         onPressed: _updating ? null : _markBalancePaid,
@@ -5316,4 +5261,16 @@ List<Widget> _receiptScanInfo(BuildContext context, BookingRecord b) {
       ),
     ),
   ];
+}
+
+
+/// True once the event's scheduled start (date + "h:mm AM/PM" time) has passed.
+/// Returns false if the time string can't be parsed, so the button stays hidden.
+bool eventHasStarted(DateTime date, String time) {
+  final m = RegExp(r'^(\d{1,2}):(\d{2})\s*(AM|PM)$', caseSensitive: false).firstMatch(time.trim());
+  if (m == null) return false;
+  var hour = int.parse(m.group(1)!) % 12;
+  if (m.group(3)!.toUpperCase() == 'PM') hour += 12;
+  final start = DateTime(date.year, date.month, date.day, hour, int.parse(m.group(2)!));
+  return !DateTime.now().isBefore(start);
 }

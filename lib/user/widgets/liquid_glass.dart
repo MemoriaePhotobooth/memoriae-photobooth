@@ -1,5 +1,5 @@
-import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
+import 'frosted.dart';
 
 /// "Liquid Glass" surface (Apple's iOS 26 look), built from plain Flutter:
 ///
@@ -58,7 +58,7 @@ class LiquidGlass extends StatelessWidget {
     );
 
     if (blur > 0) {
-      surface = BackdropFilter(filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur), child: surface);
+      surface = Frosted(sigma: blur, child: surface);
     }
 
     return Container(

@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../shared/upload_limit.dart';
 import '../services/receipt_ocr.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_palette.dart';
@@ -46,24 +45,25 @@ class _ReceiptUploadState extends State<ReceiptUpload> {
 
   Future<void> _pickImage(BuildContext context) async {
     final picker = ImagePicker();
-    // Receipts are stored as base64 directly in the booking document (see
-    // BookingRepository), so UploadLimit.prepare() shrinks big screenshots
-    // to fit Firestore's ~1MB document limit after the 100 MB check.
-    final XFile? picked = await picker.pickImage(source: ImageSource.gallery);
+    // maxWidth/maxHeight + imageQuality keep the encoded result comfortably
+    // under Firestore's ~1MB document limit — receipts are stored as a
+    // base64 string directly in the booking document (see
+    // BookingRepository), not Firebase Storage, so size matters here in a
+    // way it wouldn't for a Storage upload.
+    final XFile? picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 70,
+      maxWidth: 1280,
+      maxHeight: 1280,
+    );
     if (picked == null) return;
-    // Up to 100 MB is accepted (over that is rejected); bigger screenshots
-    // are shrunk automatically so they still fit in the booking document.
-    final PreparedImage prepared;
-    try {
-      prepared = await UploadLimit.prepare(picked, maxDimension: 1280, targetBytes: 700 * 1024);
-    } on UploadTooLargeException catch (e) {
-      if (context.mounted) AppToast.show(context, e.toString());
-      return;
-    } catch (e) {
-      if (context.mounted) AppToast.show(context, e.toString().replaceFirst('Exception: ', ''));
+    final bytes = await picked.readAsBytes();
+    if (bytes.lengthInBytes > 700 * 1024) {
+      if (context.mounted) {
+        AppToast.show(context, "That image is too large (${(bytes.lengthInBytes / 1024).round()} KB) — please pick a smaller screenshot.");
+      }
       return;
     }
-    final bytes = prepared.bytes;
 
     // OCR the screenshot on-device (no-op on web). Attaching always works;
     // the booking modal uses the result to decide whether it can submit.
@@ -74,7 +74,7 @@ class _ReceiptUploadState extends State<ReceiptUpload> {
       if (mounted) setState(() => _scanning = false);
     }
     if (!mounted) return;
-    widget.onChanged(ReceiptFile(name: prepared.name, bytes: bytes, ocr: ocr));
+    widget.onChanged(ReceiptFile(name: picked.name, bytes: bytes, ocr: ocr));
   }
 
   @override
@@ -178,7 +178,7 @@ class _ReceiptUploadState extends State<ReceiptUpload> {
                       alignment: Alignment.center,
                       child: AspectRatio(
                         aspectRatio: 3 / 4,
-                        child: Image.memory(receipt!.bytes, fit: BoxFit.contain),
+                        child: Image.memory(receipt!.bytes, fit: BoxFit.contain, cacheWidth: 1000, gaplessPlayback: true),
                       ),
                     ),
                     Padding(

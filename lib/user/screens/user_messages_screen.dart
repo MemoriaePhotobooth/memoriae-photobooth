@@ -16,6 +16,7 @@ import '../theme/app_palette.dart';
 import 'booking_invoice_screen.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/centered_modal.dart';
+import '../widgets/stream_once.dart';
 
 /// A single support thread between this customer and staff. Unlike the
 /// Staff app (which has an inbox of many customers), a customer only ever
@@ -250,7 +251,7 @@ class _UserMessagesScreenState extends State<UserMessagesScreen> {
     Widget child = placeholder;
     final bytes = decodeDataUriImage(imageUrl);
     if (bytes != null) {
-      child = Image.memory(bytes, width: size, height: size, fit: BoxFit.cover, errorBuilder: (_, __, ___) => placeholder);
+      child = Image.memory(bytes, width: size, height: size, fit: BoxFit.cover, cacheWidth: (size * 3).round(), errorBuilder: (_, __, ___) => placeholder);
     } else if (imageUrl.startsWith('http')) {
       child = Image.network(imageUrl, width: size, height: size, fit: BoxFit.cover, errorBuilder: (_, __, ___) => placeholder);
     }
@@ -335,12 +336,13 @@ class _UserMessagesScreenState extends State<UserMessagesScreen> {
   }
 
   Widget _bookingsList(BuildContext context, AppUser user) {
-    return StreamBuilder<List<BoothPackage>>(
-      stream: PricingRepository.watchPackages(),
+    return StreamOnce<List<BoothPackage>>(
+      create: () => PricingRepository.watchPackages(),
       builder: (context, pkgSnap) {
         final packages = pkgSnap.data ?? const <BoothPackage>[];
-        return StreamBuilder<List<Map<String, dynamic>>>(
-          stream: BookingRepository.watchBookingsForUser(user.uid),
+        return StreamOnce<List<Map<String, dynamic>>>(
+          create: () => BookingRepository.watchBookingsForUser(user.uid),
+          identity: user.uid,
           builder: (context, snap) {
             final bookings = snap.data ?? const <Map<String, dynamic>>[];
             if (bookings.isEmpty) {
@@ -387,8 +389,8 @@ class _UserMessagesScreenState extends State<UserMessagesScreen> {
   }
 
   Widget _camerasList(BuildContext context, AppUser user) {
-    return StreamBuilder<List<CameraOption>>(
-      stream: PricingRepository.watchCameraOptions(),
+    return StreamOnce<List<CameraOption>>(
+      create: () => PricingRepository.watchCameraOptions(),
       builder: (context, snap) {
         final cameras = snap.data ?? const <CameraOption>[];
         if (cameras.isEmpty) {
@@ -457,8 +459,8 @@ class _UserMessagesScreenState extends State<UserMessagesScreen> {
         border: Border.all(color: AppPalette.divider(context)),
       ),
       child: isCamera
-          ? StreamBuilder<List<CameraOption>>(
-              stream: PricingRepository.watchCameraOptions(),
+          ? StreamOnce<List<CameraOption>>(
+              create: () => PricingRepository.watchCameraOptions(),
               builder: (context, snap) {
                 var image = '';
                 for (final c in snap.data ?? const <CameraOption>[]) {
@@ -479,8 +481,8 @@ class _UserMessagesScreenState extends State<UserMessagesScreen> {
   }
 
   Widget _cameraAvailability(BuildContext context, String cameraId) {
-    return StreamBuilder<List<CameraRental>>(
-      stream: CameraRentalRepository.watchAllActiveRentals(),
+    return StreamOnce<List<CameraRental>>(
+      create: () => CameraRentalRepository.watchAllActiveRentals(),
       builder: (context, snap) {
         if (!snap.hasData) {
           return Text('Checking availability…', style: TextStyle(fontSize: 12, color: AppPalette.textMuted(context)));
@@ -616,7 +618,7 @@ class _UserMessagesScreenState extends State<UserMessagesScreen> {
     Widget child = fallback;
     final bytes = decodeDataUriImage(imageUrl);
     if (bytes != null) {
-      child = Image.memory(bytes, width: size, height: size, fit: BoxFit.cover, errorBuilder: (_, __, ___) => fallback);
+      child = Image.memory(bytes, width: size, height: size, fit: BoxFit.cover, cacheWidth: (size * 3).round(), errorBuilder: (_, __, ___) => fallback);
     } else if (imageUrl.startsWith('http')) {
       child = Image.network(imageUrl, width: size, height: size, fit: BoxFit.cover, errorBuilder: (_, __, ___) => fallback);
     }
@@ -665,8 +667,8 @@ class _UserMessagesScreenState extends State<UserMessagesScreen> {
             decoration: BoxDecoration(color: AppPalette.surface(context), borderRadius: BorderRadius.circular(12)),
             child: Row(
               children: [
-                StreamBuilder<List<BoothPackage>>(
-                  stream: PricingRepository.watchPackages(),
+                StreamOnce<List<BoothPackage>>(
+                  create: () => PricingRepository.watchPackages(),
                   builder: (context, snap) {
                     return _bookingThumb(context, _packageImageFor(snap.data ?? const <BoothPackage>[], b));
                   },
@@ -823,8 +825,9 @@ class _UserMessagesScreenState extends State<UserMessagesScreen> {
         Expanded(
           child: user == null
               ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
-              : StreamBuilder<List<MessageRecord>>(
-                  stream: MessageRepository.watchThread(user.uid),
+              : StreamOnce<List<MessageRecord>>(
+                  create: () => MessageRepository.watchThread(user.uid),
+                  identity: user.uid,
                   builder: (context, snapshot) {
                     if (snapshot.hasError) {
                       return Center(
@@ -843,8 +846,9 @@ class _UserMessagesScreenState extends State<UserMessagesScreen> {
                     if (!snapshot.hasData) {
                       return const Center(child: CircularProgressIndicator(color: AppColors.accent));
                     }
-                    return StreamBuilder<List<Map<String, dynamic>>>(
-                      stream: BookingRepository.watchBookingsForUser(user.uid),
+                    return StreamOnce<List<Map<String, dynamic>>>(
+                      create: () => BookingRepository.watchBookingsForUser(user.uid),
+                      identity: user.uid,
                       builder: (context, bookingSnap) {
                     final latest = _latestActiveBooking(bookingSnap.data ?? const <Map<String, dynamic>>[]);
                     final items = <_ChatItem>[

@@ -1,5 +1,4 @@
 import '../../shared/top_toast.dart';
-import '../../shared/upload_limit.dart';
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -38,14 +37,20 @@ class _StaffEventPhotosScreenState extends State<StaffEventPhotosScreen> {
     return d.year == n.year && d.month == n.month && d.day == n.day;
   }
 
+  String _mimeFor(XFile f) {
+    final name = f.name.toLowerCase();
+    if (name.endsWith('.png')) return 'image/png';
+    if (name.endsWith('.webp')) return 'image/webp';
+    return 'image/jpeg';
+  }
+
   Future<void> _addPhotos(BookingRecord booking) async {
     if (_uploading) return;
     List<XFile> picked;
     try {
-      // Each photo is checked against the 100 MB limit when it uploads, then
-      // resized/compressed so it fits the per-photo storage cap and uploads
-      // quickly on event Wi-Fi/data.
-      picked = await _picker.pickMultiImage();
+      // Resized + compressed on pick so each photo stays well under the
+      // per-photo storage cap, and uploads quickly on event Wi-Fi/data.
+      picked = await _picker.pickMultiImage(maxWidth: 1280, imageQuality: 65);
     } catch (e) {
       if (!mounted) return;
       TopToast.show(context, "Couldn't open your photos: $e", kind: TopToastKind.error);
@@ -71,12 +76,12 @@ class _StaffEventPhotosScreenState extends State<StaffEventPhotosScreen> {
       if (!mounted) return;
       _set(item, _PhotoState.uploading);
       try {
-        final prepared = await UploadLimit.prepare(item.file, maxDimension: 1280, targetBytes: 600 * 1024, startQuality: 65);
+        final bytes = await item.file.readAsBytes();
         final write = EventPhotoRepository.add(
           bookingId: item.booking.id,
           userId: item.booking.userId,
-          bytes: prepared.bytes,
-          mime: prepared.mimeType,
+          bytes: bytes,
+          mime: _mimeFor(item.file),
           staffId: staffId,
           staffName: staffName,
         );
@@ -109,7 +114,7 @@ class _StaffEventPhotosScreenState extends State<StaffEventPhotosScreen> {
     });
   }
 
-  String _friendly(Object e) => e is UploadTooLargeException ? 'Over 100 MB (not accepted)' : (e.toString().contains('too large') ? 'Too large to upload' : 'Upload failed');
+  String _friendly(Object e) => e.toString().contains('too large') ? 'Too large to upload' : 'Upload failed';
 
   void _summarize() {
     final saved = _queue.where((q) => q.state == _PhotoState.saved).length;

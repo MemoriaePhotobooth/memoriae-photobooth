@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../shared/birthdate_picker.dart';
-import '../../shared/upload_limit.dart';
 import '../services/auth_service.dart';
 import '../services/booking_repository.dart';
 import '../services/camera_rental_repository.dart';
@@ -108,6 +107,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   static const int _maxPhotoBytes = 200 * 1024;
 
+  static String _mimeFor(String name) {
+    final n = name.toLowerCase();
+    if (n.endsWith('.png')) return 'image/png';
+    if (n.endsWith('.webp')) return 'image/webp';
+    return 'image/jpeg';
+  }
+
   /// Tapping the avatar: pick a new picture from the gallery,
   /// or remove the current one.
   Future<void> _changePhoto() async {
@@ -130,7 +136,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     XFile? picked;
     try {
-      picked = await ImagePicker().pickImage(source: ImageSource.gallery);
+      picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 80,
+      );
     } catch (_) {
       if (mounted) {
         AppToast.show(context, "Couldn't open the photo picker. Please try again.");
@@ -139,19 +150,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
     if (picked == null || !mounted) return;
 
-    // Up to 100 MB is accepted (over that is rejected); the picture is shrunk
-    // automatically to a small avatar so it fits in the database.
-    final PreparedImage prepared;
-    try {
-      prepared = await UploadLimit.prepare(picked, maxDimension: 512, targetBytes: _maxPhotoBytes);
-    } on UploadTooLargeException catch (e) {
-      if (mounted) AppToast.show(context, e.toString());
-      return;
-    } catch (e) {
-      if (mounted) AppToast.show(context, e.toString().replaceFirst('Exception: ', ''));
+    final Uint8List bytes = await picked.readAsBytes();
+    if (bytes.lengthInBytes > _maxPhotoBytes) {
+      if (mounted) {
+        AppToast.show(context, "That photo is too large (${(bytes.lengthInBytes / 1024).round()} KB). Please pick a smaller one.");
+      }
       return;
     }
-    await _savePhoto(prepared.bytes, mimeType: prepared.mimeType);
+    await _savePhoto(bytes, mimeType: _mimeFor(picked.name));
   }
 
   Future<void> _savePhoto(Uint8List? bytes, {String mimeType = 'image/jpeg'}) async {

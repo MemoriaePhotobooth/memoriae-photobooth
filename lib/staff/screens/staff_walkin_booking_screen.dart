@@ -6,12 +6,16 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../models/pricing_item_record.dart';
 import '../../shared/text_draft.dart';
+import '../../shared/top_toast.dart';
 import '../services/auth_service.dart';
 import '../services/staff_settings.dart';
 import '../services/booking_repository.dart';
 import '../services/pricing_repository.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_palette.dart';
+import '../widgets/dashboard_kit.dart';
+import '../widgets/package_photo.dart';
+import '../../user/services/studio_payment_account.dart';
 
 String _peso(int amount) => '₱${NumberFormat('#,##0').format(amount)}';
 
@@ -21,7 +25,10 @@ String _peso(int amount) => '₱${NumberFormat('#,##0').format(amount)}';
 /// for how this stays a single atomic write.
 ///
 /// Redesigned as sectioned cards (Customer / Package / Schedule /
-/// Payment) with a sticky total + confirm bar. Fixes vs. the old form:
+/// Payment) with a sticky total + confirm bar. Packages are shown as photo
+/// cards (the same photos Admin uploads on the Pricing screen), and picking
+/// GCash reveals the studio's InstaPay QR for the customer to scan. Fixes
+/// vs. the old form:
 ///  * the date picker no longer crashes when today is already locked
 ///    (`initialDate` must satisfy `selectableDayPredicate`) — it now
 ///    starts on the first free date;
@@ -339,13 +346,21 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
     );
   }
 
-  Widget _section(BuildContext context, {required IconData icon, required String title, required Widget child, Widget? trailing}) {
+  Widget _section(
+    BuildContext context, {
+    required int step,
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    required Widget child,
+    Widget? trailing,
+  }) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
       decoration: BoxDecoration(
         color: AppPalette.cardBg(context),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(22),
         boxShadow: AppShadows.soft,
         border: Border.all(color: AppPalette.divider(context)),
       ),
@@ -355,23 +370,43 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
           Row(
             children: [
               Container(
-                width: 30,
-                height: 30,
+                width: 38,
+                height: 38,
                 alignment: Alignment.center,
-                decoration: BoxDecoration(color: AppColors.accentTint(0.10), borderRadius: BorderRadius.circular(10)),
-                child: Icon(icon, size: 16, color: AppColors.accent),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [AppColors.accent, Color(0xFF9A3236)],
+                  ),
+                  borderRadius: BorderRadius.circular(13),
+                  boxShadow: AppShadows.accentGlowSmall,
+                ),
+                child: Icon(icon, size: 18, color: Colors.white),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppPalette.textPrimary(context)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'STEP $step',
+                      style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 1.1, color: AppColors.accent),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      title,
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, letterSpacing: -0.2, color: AppPalette.textPrimary(context)),
+                    ),
+                    if (subtitle != null)
+                      Text(subtitle, style: TextStyle(fontSize: 11, color: AppPalette.textMuted(context))),
+                  ],
                 ),
               ),
               if (trailing != null) trailing,
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 14),
           child,
         ],
       ),
@@ -439,11 +474,21 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
                     child: Form(
                       key: _formKey,
                       autovalidateMode: AutovalidateMode.onUserInteraction,
-                      child: _responsiveSections(context, [
+                      child: _responsiveSections(
+                        context,
+                        header: const DashboardHeroBanner(
+                          watermarkIcon: Icons.person_add_alt_1,
+                          pillLabel: "WALK-IN",
+                          title: "Book & pay in one step",
+                          subtitle: "Add the customer, pick a package and take payment — all on this screen.",
+                        ),
+                        items: [
                           _section(
                             context,
+                            step: 1,
                             icon: Icons.person_outline,
                             title: "Customer",
+                            subtitle: "Who's booking?",
                             child: Column(
                               children: [
                                 TextFormField(
@@ -501,19 +546,36 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
                           ),
                           _section(
                             context,
+                            step: 2,
                             icon: Icons.photo_camera_back_outlined,
                             title: "Package",
+                            subtitle: "Tap a photo to choose",
                             trailing: _packageError
-                                ? const Text("Choose one", style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: AppColors.accent))
-                                : null,
+                                ? const Text("Choose one", style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: AppColors.accent))
+                                : (_selected != null
+                                    ? Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                                        decoration: BoxDecoration(color: AppColors.accentTint(0.10), borderRadius: BorderRadius.circular(999)),
+                                        child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.check_circle_rounded, size: 13, color: AppColors.accent),
+                                            SizedBox(width: 4),
+                                            Text("Selected", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.accent)),
+                                          ],
+                                        ),
+                                      )
+                                    : null),
                             child: packages_empty(context)
                                 ? Text("No booth packages yet — add them in Admin › Pricing.", style: TextStyle(fontSize: 12.5, color: AppPalette.textMuted(context)))
-                                : Column(children: [for (final p in _packages) _packageTile(context, p)]),
+                                : _packageGrid(context),
                           ),
                           _section(
                             context,
+                            step: 3,
                             icon: Icons.event_outlined,
                             title: "Schedule",
+                            subtitle: "When is the session?",
                             child: Column(
                               children: [
                                 Row(
@@ -568,50 +630,36 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
                           ),
                           _section(
                             context,
+                            step: 4,
                             icon: Icons.payments_outlined,
                             title: "Payment",
+                            subtitle: _paymentMethod == 'cash' ? "Collect at the counter" : "Customer scans the QR below",
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
                                   children: [
-                                    Expanded(child: _paymentChip('cash', "Cash", Icons.payments_outlined)),
+                                    Expanded(child: _paymentChip('cash', "Cash", "At the counter", Icons.payments_outlined)),
                                     const SizedBox(width: 10),
-                                    Expanded(child: _paymentChip('gcash', "GCash", Icons.qr_code_2_rounded)),
+                                    Expanded(child: _paymentChip('gcash', "GCash", "Scan QR code", Icons.qr_code_2_rounded)),
                                   ],
                                 ),
-                                if (_paymentMethod == 'cash') ...[
-                                  const SizedBox(height: 14),
-                                  TextFormField(
-                                    controller: _cashReceivedController,
-                                    keyboardType: TextInputType.number,
-                                    inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(7)],
-                                    onChanged: (_) => setState(() {}),
-                                    decoration: _decor(context, label: "Cash received", prefixText: '₱ '),
-                                    validator: _vCash,
-                                  ),
-                                  if (total > 0) ...[
-                                    const SizedBox(height: 10),
-                                    Wrap(
-                                      spacing: 8,
-                                      runSpacing: 8,
-                                      children: [
-                                        _quickCash("Exact", total),
-                                        for (final v in const [500, 1000, 2000, 5000])
-                                          if (v > total) _quickCash(_peso(v), v),
-                                      ],
+                                const SizedBox(height: 14),
+                                AnimatedSize(
+                                  duration: const Duration(milliseconds: 240),
+                                  curve: Curves.easeOutCubic,
+                                  alignment: Alignment.topCenter,
+                                  child: AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 200),
+                                    switchInCurve: Curves.easeOut,
+                                    switchOutCurve: Curves.easeIn,
+                                    layoutBuilder: (current, previous) => Stack(
+                                      alignment: Alignment.topCenter,
+                                      children: [...previous, if (current != null) current],
                                     ),
-                                  ],
-                                  if (_cashReceived >= total && total > 0 && _cashReceivedController.text.isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 10),
-                                      child: Text("Change: ${_peso(_cashReceived - total)}", style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: AppColors.accent)),
-                                    ),
-                                ] else
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 12),
-                                    child: Text("Confirm the GCash payment on the customer's phone before you tap Confirm.", style: TextStyle(fontSize: 12, color: AppPalette.textMuted(context))),
+                                    child: _paymentMethod == 'cash' ? _cashPanel(context, total) : _gcashPanel(context, total),
                                   ),
+                                ),
                               ],
                             ),
                           ),
@@ -628,7 +676,8 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
                                 ],
                               ),
                             ),
-                      ]),
+                        ],
+                      ),
                     ),
                   ),
                   _bottomBar(context, total, locked),
@@ -643,64 +692,256 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
 
   bool packages_empty(BuildContext context) => _packages.isEmpty;
 
-  Widget _packageTile(BuildContext context, PricingItemRecord p) {
+  /// Packages as photo cards, two or three to a row depending on the width
+  /// of the card they sit in. Every card has the same height (the name area
+  /// is fixed to two lines) so the grid stays tidy whatever the names are.
+  Widget _packageGrid(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        const gap = 10.0;
+        final cols = c.maxWidth >= 600 ? 3 : 2;
+        final w = (c.maxWidth - gap * (cols - 1)) / cols;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final p in _packages) SizedBox(width: w, child: _packageCard(context, p)),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _packageCard(BuildContext context, PricingItemRecord p) {
     final selected = p.id == _selectedPackageId;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () => setState(() {
-            _selectedPackageId = p.id;
-            _packageError = false;
-          }),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: selected ? AppColors.accentTint(0.06) : AppPalette.surface(context),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: selected ? AppColors.accent : AppPalette.divider(context),
-                width: selected ? 1.5 : 1,
+    final hasPhoto = PackagePhoto.hasPhoto(p.imageUrl);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () => setState(() {
+          _selectedPackageId = p.id;
+          _packageError = false;
+        }),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: selected ? AppColors.accentTint(0.05) : AppPalette.surface(context),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: selected ? AppColors.accent : AppPalette.divider(context), width: selected ? 2 : 1),
+            boxShadow: selected ? AppShadows.accentGlowSmall : null,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AspectRatio(
+                aspectRatio: 4 / 3,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    PackagePhoto(imageUrl: p.imageUrl),
+                    // Soft dark fade at the bottom so the duration chip is
+                    // readable on any photo.
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      height: 52,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Colors.transparent, Colors.black.withValues(alpha: 0.45)],
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (p.unit.isNotEmpty)
+                      Positioned(
+                        left: 8,
+                        right: 8,
+                        bottom: 8,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.55), borderRadius: BorderRadius.circular(999)),
+                            child: Text(
+                              p.unit.toUpperCase(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, letterSpacing: 0.5, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (hasPhoto)
+                      Positioned(
+                        left: 8,
+                        top: 8,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => _previewPackage(p),
+                          child: Container(
+                            width: 26,
+                            height: 26,
+                            decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.45), shape: BoxShape.circle),
+                            child: const Icon(Icons.zoom_out_map_rounded, size: 14, color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: AnimatedScale(
+                        scale: selected ? 1 : 0,
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeOutBack,
+                        child: Container(
+                          width: 26,
+                          height: 26,
+                          decoration: const BoxDecoration(color: AppColors.accent, shape: BoxShape.circle),
+                          child: const Icon(Icons.check_rounded, size: 16, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            child: Row(
+              Padding(
+                padding: const EdgeInsets.fromLTRB(11, 9, 11, 11),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      height: 32,
+                      child: Text(
+                        p.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12, height: 1.25, fontWeight: FontWeight.w700, color: AppPalette.textPrimary(context)),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      _peso(p.price),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.3, color: AppColors.accent),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Bigger look at a package's photo (pinch/scroll to zoom) with its
+  /// inclusions, so staff can show the customer what they get.
+  void _previewPackage(PricingItemRecord p) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: AppPalette.cardBg(ctx),
+        insetPadding: const EdgeInsets.all(20),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 460),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  width: 32,
-                  height: 32,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: selected ? AppColors.accent : AppColors.accentTint(0.10),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    selected ? Icons.check_rounded : Icons.photo_camera_outlined,
-                    size: 16,
-                    color: selected ? Colors.white : AppColors.accent,
+                AspectRatio(
+                  aspectRatio: 4 / 3,
+                  child: InteractiveViewer(
+                    maxScale: 4,
+                    child: SizedBox.expand(child: PackagePhoto(imageUrl: p.imageUrl)),
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        p.name,
-                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppPalette.textPrimary(context)),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(p.name, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppPalette.textPrimary(ctx))),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(_peso(p.price), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.accent)),
+                        ],
                       ),
-                      if (p.unit.isNotEmpty)
-                        Text(p.unit, style: TextStyle(fontSize: 10.5, color: AppPalette.textMuted(context))),
+                      if (p.unit.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(p.unit, style: TextStyle(fontSize: 12, color: AppPalette.textMuted(ctx))),
+                      ],
+                      if (p.features.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        for (final f in p.features.take(6))
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 5),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Padding(
+                                  padding: EdgeInsets.only(top: 2),
+                                  child: Icon(Icons.check_circle_rounded, size: 14, color: AppColors.accent),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(child: Text(f, style: TextStyle(fontSize: 12.5, color: AppPalette.textSecondary(ctx)))),
+                              ],
+                            ),
+                          ),
+                      ],
                     ],
                   ),
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  _peso(p.price),
-                  style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: AppColors.accent),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 18),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppPalette.textSecondary(ctx),
+                            side: BorderSide(color: AppPalette.divider(ctx)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text("Close"),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            setState(() {
+                              _selectedPackageId = p.id;
+                              _packageError = false;
+                            });
+                            Navigator.of(ctx).pop();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.accent,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text("Select package", style: TextStyle(fontWeight: FontWeight.w700)),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -710,16 +951,17 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
     );
   }
 
-  /// Narrow windows (phones): one scrolling column of sections.
-  /// Wide windows (desktop): two columns side by side,
-  /// Customer + Package on the left, Schedule + Payment on the right.
-  Widget _responsiveSections(BuildContext context, List<Widget> items) {
+  /// Narrow windows (phones): one scrolling column — the hero header, then
+  /// the sections. Wide windows (desktop): the hero header across the top,
+  /// then two columns side by side, Customer + Package on the left,
+  /// Schedule + Payment on the right.
+  Widget _responsiveSections(BuildContext context, {required Widget header, required List<Widget> items}) {
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < 900) {
           return ListView(
             padding: const EdgeInsets.fromLTRB(14, 8, 14, 16),
-            children: items,
+            children: [header, const SizedBox(height: 14), ...items],
           );
         }
         final left = items.take(2).toList();
@@ -729,23 +971,31 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1100),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: left,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: right,
-                    ),
+                  header,
+                  const SizedBox(height: 16),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: left,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: right,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -757,98 +1007,429 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
   }
 
   Widget _quickCash(String label, int amount) {
-    return ActionChip(
-      label: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+    final active = _cashReceivedController.text.trim() == amount.toString();
+    return ChoiceChip(
+      label: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: active ? Colors.white : AppPalette.textPrimary(context))),
+      selected: active,
+      showCheckmark: false,
+      selectedColor: AppColors.accent,
       backgroundColor: AppPalette.surface(context),
-      side: BorderSide(color: AppPalette.divider(context)),
-      onPressed: () => setState(() => _cashReceivedController.text = amount.toString()),
+      side: BorderSide(color: active ? AppColors.accent : AppPalette.divider(context)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+      onSelected: (_) => setState(() => _cashReceivedController.text = amount.toString()),
     );
   }
 
-  Widget _paymentChip(String value, String label, IconData icon) {
+  Widget _paymentChip(String value, String label, String caption, IconData icon) {
     final selected = _paymentMethod == value;
     return GestureDetector(
       onTap: () => setState(() => _paymentMethod = value),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(vertical: 9),
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 12),
         decoration: BoxDecoration(
-          color: selected ? AppColors.accent : AppPalette.surface(context),
-          borderRadius: BorderRadius.circular(12),
+          gradient: selected
+              ? const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [AppColors.accent, Color(0xFF9A3236)])
+              : null,
+          color: selected ? null : AppPalette.surface(context),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: selected ? AppColors.accent : AppPalette.divider(context)),
+          boxShadow: selected ? AppShadows.accentGlowSmall : null,
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 16, color: selected ? Colors.white : AppPalette.textMuted(context)),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w700,
-                color: selected ? Colors.white : AppPalette.textPrimary(context),
+            Container(
+              width: 32,
+              height: 32,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: selected ? Colors.white.withValues(alpha: 0.18) : AppColors.accentTint(0.10),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Icon(icon, size: 17, color: selected ? Colors.white : AppColors.accent),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: selected ? Colors.white : AppPalette.textPrimary(context)),
+                  ),
+                  Text(
+                    caption,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 10.5, color: selected ? Colors.white70 : AppPalette.textMuted(context)),
+                  ),
+                ],
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// Cash: amount received, quick-pick chips, and the change to hand back.
+  Widget _cashPanel(BuildContext context, int total) {
+    final received = _cashReceived;
+    final showChange = total > 0 && _cashReceivedController.text.isNotEmpty && received >= total;
+    return Column(
+      key: const ValueKey('cash'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextFormField(
+          controller: _cashReceivedController,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(7)],
+          onChanged: (_) => setState(() {}),
+          decoration: _decor(context, label: "Cash received", prefixText: '₱ '),
+          validator: _vCash,
+        ),
+        if (total > 0) ...[
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _quickCash("Exact", total),
+              for (final v in const [500, 1000, 2000, 5000])
+                if (v > total) _quickCash(_peso(v), v),
+            ],
+          ),
+        ],
+        if (showChange)
+          Container(
+            margin: const EdgeInsets.only(top: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.success.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.success.withValues(alpha: 0.35)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.price_check_rounded, size: 20, color: Color(0xFF15803D)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text("Change to give back", style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppPalette.textSecondary(context))),
+                ),
+                Text(_peso(received - total), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.3, color: Color(0xFF15803D))),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// GCash: the studio's InstaPay QR for the customer to scan, the amount
+  /// to send, and the account it goes to. The QR sits on a white tile with
+  /// scanner-style corner brackets (scanners need a light background, even
+  /// in dark mode). Tap it to enlarge.
+  Widget _gcashPanel(BuildContext context, int total) {
+    final textPrimary = AppPalette.textPrimary(context);
+    final textMuted = AppPalette.textMuted(context);
+    return Container(
+      key: const ValueKey('gcash'),
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.accentTint(0.08), AppColors.accentTint(0.02)],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.accentTint(0.25)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.qr_code_scanner_rounded, size: 18, color: AppColors.accent),
+              const SizedBox(width: 8),
+              Text("Scan to pay with GCash", style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: textPrimary)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+            decoration: BoxDecoration(color: AppPalette.cardBg(context), borderRadius: BorderRadius.circular(999), border: Border.all(color: AppPalette.divider(context))),
+            child: total > 0
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text("Amount to pay  ", style: TextStyle(fontSize: 12, color: textMuted)),
+                      Text(_peso(total), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.accent)),
+                    ],
+                  )
+                : Text("Pick a package to see the amount", style: TextStyle(fontSize: 12, color: textMuted)),
+          ),
+          const SizedBox(height: 14),
+          GestureDetector(
+            onTap: () => _showQrFullscreen(total),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 236),
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: CustomPaint(
+                  foregroundPainter: const _ScanFramePainter(AppColors.accent),
+                  child: Container(
+                    margin: const EdgeInsets.all(3),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 14, offset: const Offset(0, 5))],
+                    ),
+                    child: Image.asset(
+                      StudioPaymentAccount.qrAsset,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.qr_code_2_rounded, size: 80, color: Colors.black26)),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.zoom_out_map_rounded, size: 12, color: textMuted),
+              const SizedBox(width: 5),
+              Text("Tap the QR to enlarge", style: TextStyle(fontSize: 10.5, color: textMuted)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Divider(height: 1, color: AppPalette.divider(context)),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              const Icon(Icons.account_circle_outlined, size: 20, color: AppColors.accent),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(StudioPaymentAccount.accountName, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: textPrimary)),
+                    const SizedBox(height: 1),
+                    Text(StudioPaymentAccount.formattedNumber, style: TextStyle(fontSize: 12.5, letterSpacing: 0.5, color: AppPalette.textSecondary(context))),
+                  ],
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () {
+                  Clipboard.setData(const ClipboardData(text: StudioPaymentAccount.accountNumber));
+                  TopToast.show(context, "Account number copied", kind: TopToastKind.info);
+                },
+                icon: const Icon(Icons.copy_rounded, size: 15),
+                label: const Text("Copy", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.accent,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(color: AppPalette.cardBg(context), borderRadius: BorderRadius.circular(12)),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline_rounded, size: 15, color: textMuted),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "Once the customer has paid, check that it shows up in the studio's account before you tap Confirm.",
+                    style: TextStyle(fontSize: 11.5, height: 1.35, color: textMuted),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showQrFullscreen(int total) {
+    final maxQrHeight = MediaQuery.of(context).size.height * 0.5;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        insetPadding: const EdgeInsets.all(24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (total > 0) ...[
+                  const Text("Amount to pay", style: TextStyle(fontSize: 12, color: Colors.black54)),
+                  const SizedBox(height: 2),
+                  Text(_peso(total), style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: AppColors.accent)),
+                  const SizedBox(height: 14),
+                ],
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: maxQrHeight),
+                  child: InteractiveViewer(
+                    maxScale: 4,
+                    child: Image.asset(StudioPaymentAccount.qrAsset, fit: BoxFit.contain),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  StudioPaymentAccount.accountName,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.black87),
+                ),
+                const SizedBox(height: 2),
+                Text(StudioPaymentAccount.formattedNumber, style: const TextStyle(fontSize: 14, color: Colors.black54, letterSpacing: 0.6)),
+                const SizedBox(height: 8),
+                TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text("Close")),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
   Widget _bottomBar(BuildContext context, int total, Set<DateTime> locked) {
+    final pkg = _selected;
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
       decoration: BoxDecoration(
         color: AppPalette.cardBg(context),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 16, offset: const Offset(0, -3)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 20, offset: const Offset(0, -4)),
         ],
       ),
       child: SafeArea(
         top: false,
-        child: Row(
-          children: [
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1100),
+            child: Row(
               children: [
-                Text("Total", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: AppPalette.textMuted(context))),
-                Text(_peso(total), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.accent)),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 170),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        pkg == null ? "Total" : "Total · ${pkg.name}",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: AppPalette.textMuted(context)),
+                      ),
+                      Text(_peso(total), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: AppColors.accent)),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Container(
+                    height: 50,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: _submitting ? null : AppShadows.accentGlowSmall,
+                    ),
+                    child: ElevatedButton(
+                      onPressed: _submitting ? null : () => _submit(locked),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.accent,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: AppColors.accentTint(0.5),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: _submitting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.check_circle_outline_rounded, size: 18),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    "Confirm Booking & Payment",
+                                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+                                  ),
+                                ],
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
               ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: SizedBox(
-                height: 46,
-                child: ElevatedButton(
-                  onPressed: _submitting ? null : () => _submit(locked),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.accent,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: AppColors.accentTint(0.5),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: _submitting
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                        )
-                      : const FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            "Confirm Booking & Payment",
-                            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
-                          ),
-                        ),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
+}
+
+/// Four rounded "scanner" corner brackets drawn around the QR tile.
+class _ScanFramePainter extends CustomPainter {
+  final Color color;
+  const _ScanFramePainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.5
+      ..strokeCap = StrokeCap.round;
+    const l = 24.0; // arm length
+    const r = 14.0; // corner radius
+    final w = size.width;
+    final h = size.height;
+    final path = Path()
+      // top-left
+      ..moveTo(0, l)
+      ..lineTo(0, r)
+      ..quadraticBezierTo(0, 0, r, 0)
+      ..lineTo(l, 0)
+      // top-right
+      ..moveTo(w - l, 0)
+      ..lineTo(w - r, 0)
+      ..quadraticBezierTo(w, 0, w, r)
+      ..lineTo(w, l)
+      // bottom-right
+      ..moveTo(w, h - l)
+      ..lineTo(w, h - r)
+      ..quadraticBezierTo(w, h, w - r, h)
+      ..lineTo(w - l, h)
+      // bottom-left
+      ..moveTo(l, h)
+      ..lineTo(r, h)
+      ..quadraticBezierTo(0, h, 0, h - r)
+      ..lineTo(0, h - l);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ScanFramePainter old) => old.color != color;
 }

@@ -154,7 +154,7 @@ class StaffRepository {
 
   /// When true, admin accounts can't be archived, demoted to staff or
   /// deleted by anyone (including other admins).
-  static const bool protectAdminAccounts = true;
+  static const bool protectAdminAccounts = false;
 
   static const String _adminProtectedMessage =
       "Admin accounts are protected and can't be deleted, archived or demoted.";
@@ -182,6 +182,17 @@ class StaffRepository {
   /// Flips the `active` flag on the person's access doc. `AuthService`
   /// and `AdminService` both check this on every sign-in, so setting it
   /// false locks them out immediately without deleting their account.
+  /// Renames an account's display name. The login email is not changed here.
+  static Future<void> updateName(StaffAccountRecord account, String newName) async {
+    final trimmed = newName.trim();
+    if (trimmed.isEmpty) throw Exception("Name can't be empty.");
+    await _colFor(account.role).doc(account.id).update({'name': trimmed});
+    await ActivityLogRepository.log(
+      action: 'Renamed account',
+      targetSummary: '${account.name} → $trimmed (${account.email})',
+    );
+  }
+
   static Future<void> setActive(StaffAccountRecord account, bool active) async {
     if (account.archived) {
       throw Exception('Restore this account from the archive first.');
@@ -284,7 +295,7 @@ class StaffRepository {
   /// the Admin SDK). With the doc gone, the person can no longer get into
   /// either app.
   static Future<void> removeStaff(StaffAccountRecord account) async {
-    if (account.role == AccessRole.admin) {
+    if (protectAdminAccounts && account.role == AccessRole.admin) {
       throw Exception(_adminProtectedMessage);
     }
     if (_isMe(account)) throw Exception("You can't delete your own account.");

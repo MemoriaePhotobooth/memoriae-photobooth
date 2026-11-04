@@ -14,6 +14,7 @@ import 'event_photos_screen.dart';
 import '../services/refund_request_repository.dart';
 import '../widgets/circle_back_button.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/stream_once.dart';
 
 /// Lets the customer see every booking they've made and, once one is
 /// marked `completed` by staff, leave a star rating + comment against it.
@@ -91,8 +92,9 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
       ),
       body: _uid == null
           ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
-          : StreamBuilder<List<Map<String, dynamic>>>(
-              stream: BookingRepository.watchBookingsForUser(_uid!),
+          : StreamOnce<List<Map<String, dynamic>>>(
+              create: () => BookingRepository.watchBookingsForUser(_uid!),
+              identity: _uid,
               builder: (context, bookingSnap) {
                 if (!bookingSnap.hasData) {
                   return const Center(child: CircularProgressIndicator(color: AppColors.accent));
@@ -144,8 +146,9 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                 final pastCount = bookings.length - upcomingCount;
                 final filtered = _applyTab(bookings);
 
-                return StreamBuilder<Set<String>>(
-                  stream: FeedbackRepository.watchReviewedBookingIds(_uid!),
+                return StreamOnce<Set<String>>(
+                  create: () => FeedbackRepository.watchReviewedBookingIds(_uid!),
+                  identity: _uid,
                   builder: (context, feedbackSnap) {
                     final reviewedIds = feedbackSnap.data ?? const <String>{};
                     return Column(
@@ -386,6 +389,7 @@ class _BookingCard extends StatelessWidget {
                                 booking['refundStatus'] == 'refunded'
                                     ? 'Refund of ${formatPeso((booking['refundAmount'] as num?)?.toInt() ?? 0)} sent'
                                         '${booking['refundedAt'] is Timestamp ? ' on ${DateFormat('MMM d, yyyy').format((booking['refundedAt'] as Timestamp).toDate())}' : ''}'
+                                        '${(booking['refundReference'] ?? '').toString().trim().isEmpty ? '' : ' · GCash ref ${(booking['refundReference'] ?? '').toString().trim()}'}'
                                     : 'Refund of ${formatPeso((booking['refundAmount'] as num?)?.toInt() ?? 0)} pending — we\'ll send it to your GCash',
                                 style: TextStyle(
                                   fontSize: 11.5,
@@ -906,8 +910,9 @@ class _RefundSection extends StatelessWidget {
         ],
       );
     }
-    return StreamBuilder<Map<String, dynamic>?>(
-      stream: RefundRequestRepository.watchLatest(bookingId: bookingId, userId: userId),
+    return StreamOnce<Map<String, dynamic>?>(
+      create: () => RefundRequestRepository.watchLatest(bookingId: bookingId, userId: userId),
+      identity: Object.hash(bookingId, userId),
       builder: (context, snap) {
         final latest = snap.data;
         final status = latest?['status'] as String?;

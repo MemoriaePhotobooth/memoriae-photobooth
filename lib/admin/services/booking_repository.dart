@@ -139,7 +139,12 @@ class BookingRepository {
   /// first and throws [DoubleBookingException] if that date is already
   /// taken; on success it auto-rejects every other still-open booking for
   /// the same date, so one approval settles the day.
-  static Future<void> updateStatus(String bookingId, String status, {String? rejectionReason, RefundDecision? refund}) async {
+  ///
+  /// When [refundRequestId] is given (approving a customer's refund request),
+  /// the request is marked `approved` in the SAME batch as the cancellation,
+  /// so the two can never get out of step.
+  static Future<void> updateStatus(String bookingId, String status,
+      {String? rejectionReason, RefundDecision? refund, String? refundRequestId, String? decidedBy}) async {
     Map<String, dynamic>? bookingData;
     if (status == 'confirmed' || status == 'cancelled') {
       final snap = await _col.doc(bookingId).get();
@@ -182,6 +187,13 @@ class BookingRepository {
 
     final batch = FirebaseFirestore.instance.batch();
     batch.update(_col.doc(bookingId), updates);
+    if (refundRequestId != null) {
+      batch.update(FirebaseFirestore.instance.collection('refundRequests').doc(refundRequestId), {
+        'status': 'approved',
+        'decidedAt': FieldValue.serverTimestamp(),
+        'decidedBy': decidedBy ?? '',
+      });
+    }
 
     // Keep `dateHolds` in sync: an approval should permanently lock the
     // date, a rejection should free it back up for other customers.
@@ -246,7 +258,7 @@ class BookingRepository {
 
   /// Marks a pending refund as sent (the staff member has returned the
   /// money by GCash). Idempotent: does nothing if it's not pending.
-  static Future<void> markRefunded(String bookingId, {String? staffId, String? staffName}) async {
+  static Future<void> markRefunded(String bookingId, {String? staffId, String? staffName, String? reference}) async {
     final ref = _col.doc(bookingId);
     final snap = await ref.get();
     final data = snap.data();
@@ -255,6 +267,7 @@ class BookingRepository {
     await ref.update({
       'refundStatus': 'refunded',
       'refundedAt': FieldValue.serverTimestamp(),
+      if (reference != null && reference.trim().isNotEmpty) 'refundReference': reference.trim(),
       // Shows up in the customer's notification bell ("Your refund has
       // been sent") until they open it.
       'notifyCustomer': true,

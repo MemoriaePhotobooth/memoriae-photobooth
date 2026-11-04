@@ -1,4 +1,3 @@
-import '../../shared/centered_body.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +9,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_palette.dart';
 import '../widgets/circle_back_button.dart';
 import 'event_photos_screen.dart';
+import '../widgets/stream_once.dart';
 
 /// Every event photo the customer can see, grouped by booking. Each row opens
 /// that booking's photos. Only bookings that are confirmed or completed and
@@ -35,10 +35,11 @@ class EventPhotosListScreen extends StatelessWidget {
           style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppPalette.textPrimary(context)),
         ),
       ),
-      body: CenteredBody(child: !signedIn
+      body: !signedIn
           ? _message(context, Icons.lock_outline, 'Log in to see the photos from your events.')
-          : StreamBuilder<List<Map<String), dynamic>>>(
-              stream: BookingRepository.watchBookingsForUser(uid),
+          : StreamOnce<List<Map<String, dynamic>>>(
+              create: () => BookingRepository.watchBookingsForUser(uid),
+              identity: uid,
               builder: (context, snap) {
                 if (snap.hasError) {
                   return _message(context, Icons.error_outline, "Couldn't load your photos. Please try again.");

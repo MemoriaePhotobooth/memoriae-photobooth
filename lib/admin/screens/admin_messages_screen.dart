@@ -33,7 +33,11 @@ bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month 
 /// other; leave it null to decide by the available width.
 class AdminMessagesScreen extends StatefulWidget {
   final bool? isDesktop;
-  const AdminMessagesScreen({super.key, this.isDesktop});
+  /// Optional: open straight onto this customer's conversation (used by the
+  /// refund screen's "Message" button).
+  final String? initialUserId;
+  final String? initialName;
+  const AdminMessagesScreen({super.key, this.isDesktop, this.initialUserId, this.initialName});
 
   @override
   State<AdminMessagesScreen> createState() => _AdminMessagesScreenState();
@@ -46,6 +50,13 @@ class _AdminMessagesScreenState extends State<AdminMessagesScreen> {
   _InboxFilter _filter = _InboxFilter.open;
   String? _selectedUserId;
   String? _selectedName;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedUserId = widget.initialUserId;
+    _selectedName = widget.initialName;
+  }
 
   @override
   void dispose() {
@@ -420,6 +431,8 @@ const List<(String, String)> kQuickReplies = [
   ('Booking received', 'Hi {name}, we received your booking. We\'ll confirm it as soon as we\'ve checked your payment receipt.'),
   ('Payment reminder', 'Hi {name}, a friendly reminder that your remaining balance is due on or before your event date. Let us know if you have any questions!'),
   ('Reschedule', 'Hi {name}, sure — please tell us your preferred new date and time and we\'ll check availability for you.'),
+  ('Refund received', 'Hi {name}, we received your refund request and we\'re reviewing it. We\'ll update you here once it\'s approved.'),
+  ('Refund sent', 'Hi {name}, your refund has been sent to your GCash. GCash reference no.: '),
   ('Rental reminder', 'Hi {name}, a reminder that your camera rental is due soon. Late returns may be charged an overdue fee.'),
   ('Thank you', 'Thank you so much, {name}! It was a pleasure serving you. We\'d love to hear your feedback in the app.'),
   ('Closing', 'Glad we could help, {name}! We\'ll close this conversation for now — message us anytime if you need anything else.'),
@@ -716,7 +729,7 @@ class _ThreadBodyState extends State<_ThreadBody> {
 
     return LayoutBuilder(
       builder: (context, c) {
-        final maxBubble = (c.maxWidth * 0.74).clamp(240.0, 480.0).toDouble();
+        final maxBubble = (c.maxWidth * 0.6).clamp(220.0, 340.0).toDouble();
         return ListView.builder(
           controller: _scrollController,
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
@@ -863,10 +876,10 @@ class _MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final m = message;
     final radius = BorderRadius.only(
-      topLeft: const Radius.circular(18),
-      topRight: const Radius.circular(18),
-      bottomLeft: Radius.circular(mine || !endsGroup ? 18 : 5),
-      bottomRight: Radius.circular(!mine || !endsGroup ? 18 : 5),
+      topLeft: const Radius.circular(16),
+      topRight: const Radius.circular(16),
+      bottomLeft: Radius.circular(mine || !endsGroup ? 16 : 5),
+      bottomRight: Radius.circular(!mine || !endsGroup ? 16 : 5),
     );
     final textColor = mine ? Colors.white : AppPalette.textPrimary(context);
     final timeColor = mine ? Colors.white.withValues(alpha: 0.72) : AppPalette.textMuted(context);
@@ -874,7 +887,7 @@ class _MessageBubble extends StatelessWidget {
 
     return Container(
       constraints: BoxConstraints(maxWidth: maxWidth),
-      padding: m.hasImage ? const EdgeInsets.all(4) : const EdgeInsets.fromLTRB(14, 9, 14, 7),
+      padding: m.hasImage ? const EdgeInsets.all(4) : const EdgeInsets.fromLTRB(12, 8, 12, 6),
       decoration: BoxDecoration(
         color: mine ? AppColors.accent : AppPalette.cardBg(context),
         borderRadius: radius,
@@ -895,7 +908,7 @@ class _MessageBubble extends StatelessWidget {
               padding: m.hasImage ? const EdgeInsets.fromLTRB(10, 7, 10, 0) : EdgeInsets.zero,
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: Text(m.caption, style: TextStyle(fontSize: 13.5, height: 1.35, color: textColor)),
+                child: Text(m.caption, style: TextStyle(fontSize: 13, height: 1.35, color: textColor)),
               ),
             ),
           Padding(

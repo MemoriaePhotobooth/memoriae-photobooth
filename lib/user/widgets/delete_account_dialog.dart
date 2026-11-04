@@ -100,8 +100,8 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppPalette.textPrimary(context)),
               ),
               const SizedBox(height: 16),
-              _point(context, 'Your name, contact number, birthdate, and GCash details will be erased.'),
-              _point(context, 'Booking and payment records stay on file for accounting, without your name.'),
+              _point(context, 'Your profile (name, contact number, birthdate, GCash details) and your chat messages will be erased.'),
+              _point(context, 'Booking and payment records stay on file for the studio\'s accounting.'),
               _point(context, "This can't be undone. You'll need to register again to book with us."),
               const SizedBox(height: 10),
               TextField(

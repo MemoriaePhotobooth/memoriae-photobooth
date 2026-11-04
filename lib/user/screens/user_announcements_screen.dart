@@ -4,6 +4,7 @@ import '../services/announcement_repository.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_palette.dart';
 import '../widgets/announcement_card.dart';
+import '../widgets/stream_once.dart';
 
 /// Every announcement staff have posted (e.g. "Photobooth is closed
 /// today"), pinned ones first and then newest first. Read-only — staff
@@ -40,8 +41,8 @@ class UserAnnouncementsScreen extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: StreamBuilder<List<AnnouncementRecord>>(
-            stream: AnnouncementRepository.watchAll(),
+          child: StreamOnce<List<AnnouncementRecord>>(
+            create: () => AnnouncementRepository.watchAll(),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return Center(

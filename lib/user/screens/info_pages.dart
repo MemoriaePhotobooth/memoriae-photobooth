@@ -26,15 +26,9 @@ class InfoPageScreen extends StatelessWidget {
         title: Text(title, style: TextStyle(color: AppPalette.textPrimary(context), fontWeight: FontWeight.bold, fontSize: 16)),
       ),
       body: SafeArea(
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 680),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: child,
-            ),
-          ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: child,
         ),
       ),
     );
@@ -203,10 +197,10 @@ const List<PolicySection> kTermsOfServiceSections = [
 /// change in a way customers should re-accept. It's saved on each account
 /// at registration (`termsVersion`) next to the time they agreed
 /// (`agreedToTermsAt`), so there's a record of exactly what they accepted.
-const String kPoliciesVersion = '2026-11-03';
+const String kPoliciesVersion = '2026-10-06';
 
 /// Shown as "Last updated" on the Privacy Policy page.
-const String kPrivacyPolicyLastUpdated = 'November 3, 2026';
+const String kPrivacyPolicyLastUpdated = 'October 6, 2026';
 
 /// STARTER DRAFT — written from what this app actually collects and which
 /// services it uses (Firebase, Google Maps, EmailJS, Google Gemini), and
@@ -240,10 +234,6 @@ const List<PolicySection> kPrivacyPolicySections = [
   PolicySection(
     "Services we use",
     "We use Google Firebase (login, database and notifications), Google Maps (the event-location picker), EmailJS (to email your verification code) and, when it is turned on, Google Gemini (to answer chatbot questions). Only your recent chat messages and our public prices and hours are sent to Gemini — not your name, email or bookings — so please don't type sensitive details into the chatbot. These providers handle data on our behalf. We don't sell your personal information.",
-  ),
-  PolicySection(
-    "Cookies and local storage",
-    "The web version of the app uses cookies and your browser's local storage to keep you signed in, remember settings such as dark mode and whether you've seen the tutorial, save an unfinished registration, and keep your booking hold timer working. We don't use them for advertising and we don't sell your data. When you first open the app you can Accept or Decline: declining keeps only what the app needs to run. You can clear cookies and site data any time in your browser settings (this will sign you out).",
   ),
   PolicySection(
     "How long we keep it",
@@ -296,169 +286,6 @@ class PolicyScreen extends StatelessWidget {
             const SizedBox(height: 20),
           ],
         ],
-      ),
-    );
-  }
-}
-
-/// Full "Terms and Conditions" pop-up shown during registration. It shows the
-/// app's own Terms of Service and Privacy Policy text (the same constants the
-/// rest of the app uses, so there is only one copy to keep up to date). The
-/// "I Accept" button only turns on once the person has scrolled to the end.
-/// Returns true only if they tapped "I Accept".
-Future<bool> showTermsAcceptDialog(BuildContext context) async {
-  final result = await showDialog<bool>(
-    context: context,
-    barrierDismissible: false,
-    builder: (_) => const _TermsAcceptDialog(),
-  );
-  return result ?? false;
-}
-
-class _TermsAcceptDialog extends StatefulWidget {
-  const _TermsAcceptDialog();
-
-  @override
-  State<_TermsAcceptDialog> createState() => _TermsAcceptDialogState();
-}
-
-class _TermsAcceptDialogState extends State<_TermsAcceptDialog> {
-  final ScrollController _scroll = ScrollController();
-  bool _reachedEnd = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _scroll.addListener(_checkEnd);
-    // If everything already fits on screen there is nothing to scroll.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkEnd());
-  }
-
-  void _checkEnd() {
-    if (!mounted || !_scroll.hasClients || _reachedEnd) return;
-    final p = _scroll.position;
-    if (p.maxScrollExtent <= 0 || p.pixels >= p.maxScrollExtent - 24) {
-      setState(() => _reachedEnd = true);
-    }
-  }
-
-  @override
-  void dispose() {
-    _scroll.dispose();
-    super.dispose();
-  }
-
-  Widget _block(BuildContext context, String title, List<PolicySection> sections, {String? updated}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.accent)),
-        if (updated != null) ...[
-          const SizedBox(height: 4),
-          Text("Last updated: $updated", style: TextStyle(fontSize: 11, color: AppPalette.textMuted(context))),
-        ],
-        const SizedBox(height: 12),
-        for (final section in sections) ...[
-          Text(section.heading, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: AppPalette.textPrimary(context))),
-          const SizedBox(height: 5),
-          Text(section.body, style: TextStyle(fontSize: 12.5, height: 1.55, color: AppPalette.textSecondary(context))),
-          const SizedBox(height: 16),
-        ],
-      ],
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final maxHeight = MediaQuery.of(context).size.height * 0.82;
-    return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: 560, maxHeight: maxHeight),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
-              child: Text(
-                "Terms and Conditions",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppPalette.textPrimary(context)),
-              ),
-            ),
-            Divider(height: 1, color: AppPalette.divider(context)),
-            Flexible(
-              child: Scrollbar(
-                controller: _scroll,
-                child: SingleChildScrollView(
-                  controller: _scroll,
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _block(context, "Terms of Service", kTermsOfServiceSections),
-                      const SizedBox(height: 4),
-                      _block(context, "Privacy Policy", kPrivacyPolicySections, updated: kPrivacyPolicyLastUpdated),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            Divider(height: 1, color: AppPalette.divider(context)),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (!_reachedEnd)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.keyboard_double_arrow_down_rounded, size: 16, color: AppPalette.textMuted(context)),
-                          const SizedBox(width: 6),
-                          Text("Scroll to the bottom to accept", style: TextStyle(fontSize: 12, color: AppPalette.textMuted(context))),
-                        ],
-                      ),
-                    ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.of(context).pop(false),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppPalette.textPrimary(context),
-                            side: BorderSide(color: AppPalette.divider(context), width: 1.2),
-                            shape: const StadiumBorder(),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
-                          child: const Text("Cancel", style: TextStyle(fontWeight: FontWeight.w600)),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: _reachedEnd ? () => Navigator.of(context).pop(true) : null,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.accent,
-                            foregroundColor: AppColors.onAccent,
-                            disabledBackgroundColor: AppPalette.divider(context),
-                            elevation: 0,
-                            shape: const StadiumBorder(),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
-                          child: const Text("I Accept", style: TextStyle(fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

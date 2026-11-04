@@ -1,4 +1,3 @@
-import '../../shared/centered_body.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -11,6 +10,7 @@ import '../services/payment_info.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_palette.dart';
 import '../widgets/circle_back_button.dart';
+import '../widgets/stream_once.dart';
 
 /// "Tickets" = a digital event pass for each booking.
 ///
@@ -70,13 +70,14 @@ class _TicketsScreenState extends State<TicketsScreen> {
         foregroundColor: AppPalette.textPrimary(context),
         title: Text('Tickets', style: TextStyle(color: AppPalette.textPrimary(context), fontWeight: FontWeight.bold, fontSize: 16)),
       ),
-      body: CenteredBody(child: SafeArea(
+      body: SafeArea(
         child: _loadingUser
             ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
             : _uid == null
                 ? _message(context, Icons.confirmation_number_outlined, 'No tickets yet', 'Book a photobooth and your pass will show up here.')
-                : StreamBuilder<List<Map<String, dynamic>>>(
-                    stream: BookingRepository.watchBookingsForUser(_uid!),
+                : StreamOnce<List<Map<String, dynamic>>>(
+                    create: () => BookingRepository.watchBookingsForUser(_uid!),
+                    identity: _uid,
                     builder: (context, snap) {
                       if (snap.hasError) {
                         return _message(context, Icons.error_outline, "Couldn't load your tickets", 'Check your connection and try again.');
@@ -121,7 +122,7 @@ class _TicketsScreenState extends State<TicketsScreen> {
                       );
                     },
                   ),
-      )),
+      ),
     );
   }
 

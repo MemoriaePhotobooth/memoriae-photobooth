@@ -170,7 +170,7 @@ class _PackageCard extends StatelessWidget {
                     height: 200,
                     width: double.infinity,
                     child: photo != null
-                        ? Image.memory(photo, fit: BoxFit.cover)
+                        ? Image.memory(photo, fit: BoxFit.cover, cacheWidth: 640, gaplessPlayback: true)
                         : Container(
                             decoration: BoxDecoration(
                               gradient: LinearGradient(

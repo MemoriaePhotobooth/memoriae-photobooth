@@ -1,4 +1,3 @@
-import '../../shared/centered_body.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -10,6 +9,7 @@ import '../services/photo_download.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_palette.dart';
 import '../widgets/circle_back_button.dart';
+import '../widgets/stream_once.dart';
 
 /// The photos our staff took at the customer's event. Opened from a
 /// booking in My Bookings, so a customer only ever sees photos from their
@@ -44,11 +44,12 @@ class EventPhotosScreen extends StatelessWidget {
         iconTheme: IconThemeData(color: AppPalette.textPrimary(context)),
         title: Text(title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppPalette.textPrimary(context))),
       ),
-      body: CenteredBody(child: !signedIn
+      body: !signedIn
           ? _message(context, Icons.lock_outline,
               "Sign in to your account to see your event photos.\nGuest bookings can't view them.")
-          : StreamBuilder<List<EventPhoto>>(
-              stream: EventPhotoRepository.watchForBooking(bookingId: bookingId, userId: userId),
+          : StreamOnce<List<EventPhoto>>(
+              create: () => EventPhotoRepository.watchForBooking(bookingId: bookingId, userId: userId),
+              identity: Object.hash(bookingId, userId),
               builder: (context, snap) {
                 if (snap.hasError) {
                   final denied = snap.error is FirebaseException && (snap.error as FirebaseException).code == 'permission-denied';
@@ -96,7 +97,7 @@ class EventPhotosScreen extends StatelessWidget {
                   ],
                 );
               },
-            )),
+            ),
     );
   }
 
@@ -201,7 +202,7 @@ class _PhotoViewerState extends State<_PhotoViewer> {
     return Dialog(
       backgroundColor: Colors.black,
       insetPadding: const EdgeInsets.all(12),
-      child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 760), child: Stack(
+      child: Stack(
         children: [
           PageView.builder(
             controller: _controller,
@@ -209,7 +210,7 @@ class _PhotoViewerState extends State<_PhotoViewer> {
             onPageChanged: (i) => setState(() => _index = i),
             itemBuilder: (_, i) => InteractiveViewer(
               maxScale: 5,
-              child: Center(child: Image.memory(widget.photos[i].bytes, fit: BoxFit.contain)),
+              child: Center(child: Image.memory(widget.photos[i].bytes, fit: BoxFit.contain, cacheWidth: 1600, gaplessPlayback: true)),
             ),
           ),
           Positioned(
@@ -266,7 +267,7 @@ class _PhotoViewerState extends State<_PhotoViewer> {
             ),
           ),
         ],
-      )),
+      ),
     );
   }
 }

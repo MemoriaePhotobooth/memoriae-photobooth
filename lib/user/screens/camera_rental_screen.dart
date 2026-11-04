@@ -10,6 +10,7 @@ import '../services/pricing_repository.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_palette.dart';
 import '../widgets/rental_countdown_timer.dart';
+import '../widgets/stream_once.dart';
 
 const Color _kAvailableGreen = Color(0xFF2E7D32);
 const Color _kRentedAmber = Color(0xFFB07A2A);
@@ -35,7 +36,6 @@ class CameraRentalScreen extends StatefulWidget {
 class _CameraRentalScreenState extends State<CameraRentalScreen> {
   String? _uid;
   bool _onlyAvailable = false;
-  final Map<String, Uint8List?> _photoCache = {};
 
   @override
   void initState() {
@@ -59,7 +59,7 @@ class _CameraRentalScreenState extends State<CameraRentalScreen> {
     }
   }
 
-  Uint8List? _photo(String url) => _photoCache.putIfAbsent(url, () => decodeDataUriImage(url));
+  Uint8List? _photo(String url) => decodeDataUriImage(url);
 
   /// "today 3:00 PM" / "Oct 4, 3:00 PM", or null when the due time has
   /// already passed (the unit is still out, but nobody can say when).
@@ -163,8 +163,9 @@ class _CameraRentalScreenState extends State<CameraRentalScreen> {
   /// Countdown card(s) for anything already checked out under this
   /// customer's account. Renders nothing when they have no active rental.
   Widget _buildMyRentals(BuildContext context) {
-    return StreamBuilder<List<CameraRental>>(
-      stream: CameraRentalRepository.watchActiveRentalsForUser(_uid!),
+    return StreamOnce<List<CameraRental>>(
+      create: () => CameraRentalRepository.watchActiveRentalsForUser(_uid!),
+      identity: _uid,
       builder: (context, snapshot) {
         final active = snapshot.data ?? const <CameraRental>[];
         if (active.isEmpty) return const SizedBox.shrink();
@@ -201,12 +202,12 @@ class _CameraRentalScreenState extends State<CameraRentalScreen> {
   }
 
   Widget _buildCatalog(BuildContext context) {
-    return StreamBuilder<List<CameraOption>>(
-      stream: PricingRepository.watchCameraOptions(),
+    return StreamOnce<List<CameraOption>>(
+      create: () => PricingRepository.watchCameraOptions(),
       builder: (context, snapshot) {
         final cameras = (snapshot.data == null || snapshot.data!.isEmpty) ? kCameraOptions : snapshot.data!;
-        return StreamBuilder<List<CameraRental>>(
-          stream: CameraRentalRepository.watchAllActiveRentals(),
+        return StreamOnce<List<CameraRental>>(
+          create: () => CameraRentalRepository.watchAllActiveRentals(),
           builder: (context, activeSnapshot) {
             final activeByCamera = <String, CameraRental>{
               for (final r in activeSnapshot.data ?? const <CameraRental>[]) r.cameraId: r,
@@ -384,7 +385,7 @@ class _CameraPhoto extends StatelessWidget {
       return Stack(
         fit: StackFit.expand,
         children: [
-          Image.memory(photo!, fit: BoxFit.cover),
+          Image.memory(photo!, fit: BoxFit.cover, cacheWidth: 640),
           if (unavailable) Container(color: Colors.black.withValues(alpha: 0.4)),
         ],
       );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/announcement_record.dart';
 import '../services/announcement_repository.dart';
 import '../theme/app_palette.dart';
+import 'stream_once.dart';
 
 /// Inline banner for the Home screen so a staff announcement (e.g. "closed
 /// today") can't be missed. Shows up to two announcements that are either
@@ -16,8 +17,8 @@ class AnnouncementBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<AnnouncementRecord>>(
-      stream: AnnouncementRepository.watchAll(),
+    return StreamOnce<List<AnnouncementRecord>>(
+      create: () => AnnouncementRepository.watchAll(),
       builder: (context, snapshot) {
         final all = snapshot.data ?? const <AnnouncementRecord>[];
         final cutoff = DateTime.now().subtract(const Duration(hours: 48));

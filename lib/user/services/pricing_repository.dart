@@ -97,10 +97,34 @@ class PricingRepository {
 /// the Admin side) back into raw bytes for `Image.memory`. Returns null
 /// for an empty string or anything that isn't a valid data URI, so
 /// callers can fall back to an icon.
+///
+/// Results are memoized: a package photo is a big base64 string, and
+/// decoding it on every rebuild (scrolling, setState, stream updates) is
+/// what made the customer app feel laggy. The cache is small and is
+/// cleared if it ever grows past [_kDecodeCacheMax] photos.
+final Map<String, Uint8List?> _decodeCache = {};
+const int _kDecodeCacheMax = 40;
+
+/// A short key for a (possibly multi-megabyte) data URI. Hashing the whole
+/// string on every lookup would itself be slow on the web, so the key is the
+/// length plus two small samples from the middle and the end.
+String _decodeKey(String v) {
+  final n = v.length;
+  if (n < 160) return v;
+  final mid = n ~/ 2;
+  return '$n:${v.substring(mid, mid + 48)}:${v.substring(n - 48)}';
+}
+
 Uint8List? decodeDataUriImage(String value) {
   if (!value.startsWith('data:') || !value.contains(',')) return null;
+  final key = _decodeKey(value);
+  final hit = _decodeCache[key];
+  if (hit != null) return hit;
   try {
-    return base64Decode(value.split(',').last);
+    final bytes = base64Decode(value.split(',').last);
+    if (_decodeCache.length >= _kDecodeCacheMax) _decodeCache.clear();
+    _decodeCache[key] = bytes;
+    return bytes;
   } catch (_) {
     return null;
   }

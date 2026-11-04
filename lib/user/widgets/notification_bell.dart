@@ -6,6 +6,7 @@ import '../models/booth_package.dart';
 import '../services/booking_repository.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_palette.dart';
+import 'stream_once.dart';
 
 /// Bell icon for the dashboard header. Badges with the number of the
 /// customer's bookings that staff/admin just approved, declined, or
@@ -30,8 +31,9 @@ class NotificationBell extends StatelessWidget {
     final uid = userId;
     if (uid == null) return _bellButton(context, count: 0, onTap: null);
 
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: BookingRepository.watchNotifications(uid),
+    return StreamOnce<List<Map<String, dynamic>>>(
+      create: () => BookingRepository.watchNotifications(uid),
+      identity: uid,
       builder: (context, snap) {
         final notifications = snap.data ?? const <Map<String, dynamic>>[];
         return _bellButton(

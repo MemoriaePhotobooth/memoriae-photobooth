@@ -4,6 +4,7 @@ import '../models/booth_package.dart';
 import '../services/booking_repository.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_palette.dart';
+import '../widgets/stream_once.dart';
 
 /// Read-only month calendar so a customer can see, before ever opening
 /// checkout, which dates already have someone else's booking and which
@@ -66,8 +67,8 @@ class _UserCalendarScreenState extends State<UserCalendarScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<Set<DateTime>>(
-      stream: BookingRepository.watchBookedDates(),
+    return StreamOnce<Set<DateTime>>(
+      create: () => BookingRepository.watchBookedDates(),
       builder: (context, snapshot) {
         final bookedDates = snapshot.data ?? const <DateTime>{};
         final selected = _selectedDay;

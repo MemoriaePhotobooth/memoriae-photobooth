@@ -208,13 +208,10 @@ class AppLayoutShell extends StatelessWidget {
                         // Raised above the floating nav; the open panel sits low and
                         // covers the nav while chatting.
                         if (!onMessages)
-                          ChatbotBubble(
+                          const ChatbotBubble(
                               fabBottom: 104,
                               panelBottom: 12,
-                              // On wide windows the content column is centered
-                              // and capped at 640, so keep the chat button
-                              // inside it rather than at the far screen edge.
-                              right: 16 + (constraints.maxWidth > 640 ? (constraints.maxWidth - 640) / 2 : 0.0)),
+                              right: 16),
                       ],
                     );
                   },
