@@ -257,26 +257,17 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
         barrierColor: Colors.black.withValues(alpha: 0.05),
         transitionDuration: const Duration(milliseconds: 160),
         pageBuilder: (dialogContext, _, __) {
-<<<<<<< HEAD
-          final screenWidth = MediaQuery.of(dialogContext).size.width;
-          final width = (screenWidth - _StaffSidebar.railWidth - 40).clamp(320.0, 420.0).toDouble();
-=======
           // Sits just right of the expanded sidebar card (16px page margin +
           // card width + a small gap), top-aligned with it, instead of
           // covering the sidebar's own icons.
           final screen = MediaQuery.of(dialogContext).size;
           const left = 16 + _StaffSidebar._expandedCard + 12;
           final width = (screen.width - left - 16).clamp(320.0, 420.0).toDouble();
->>>>>>> 991372238794561fb409ddfdfc599edcc62a5186
           return SafeArea(
             child: Align(
               alignment: Alignment.topRight,
               child: Padding(
-<<<<<<< HEAD
-                padding: const EdgeInsets.only(top: 92, right: 20),
-=======
                 padding: const EdgeInsets.only(top: 16, left: left),
->>>>>>> 991372238794561fb409ddfdfc599edcc62a5186
                 child: Material(
                   color: Colors.transparent,
                   child: SizedBox(

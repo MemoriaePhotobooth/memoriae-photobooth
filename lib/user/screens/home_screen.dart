@@ -880,13 +880,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 fit: StackFit.expand,
                 children: [
                   if (photo != null)
-<<<<<<< HEAD
-                    (hero
-                        ? Hero(tag: 'pkg-photo-${p.id}', child: Image.memory(photo, fit: BoxFit.cover, cacheWidth: 900, gaplessPlayback: true))
-                        : Image.memory(photo, fit: BoxFit.cover, cacheWidth: 900, gaplessPlayback: true))
-=======
                     Hero(tag: 'pkg-photo-${p.id}', child: Image.memory(photo, fit: BoxFit.cover))
->>>>>>> 991372238794561fb409ddfdfc599edcc62a5186
                   else
                     DecoratedBox(
                       decoration: const BoxDecoration(
@@ -968,13 +962,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         alignment: Alignment.center,
                         decoration: ShapeDecoration(shape: _squircle(11), color: AppColors.accent),
                         child: photo != null
-<<<<<<< HEAD
-                            ? Image.memory(photo, width: 44, height: 44, fit: BoxFit.cover, cacheWidth: 132)
-                            : const Icon(CupertinoIcons.camera_fill, size: 20, color: AppColors.onAccent),
-=======
                             ? Image.memory(photo, width: 44, height: 44, fit: BoxFit.cover)
                             : const Icon(CupertinoIcons.camera_fill, size: 20, color: Colors.white),
->>>>>>> 991372238794561fb409ddfdfc599edcc62a5186
                       ),
                       const SizedBox(width: 12),
                       Expanded(

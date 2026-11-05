@@ -17,14 +17,7 @@ import '../widgets/addon_selector.dart';
 import '../widgets/receipt_upload_modal.dart';
 import '../widgets/location_picker_screen.dart';
 import 'booking_success_screen.dart';
-<<<<<<< HEAD
-import 'login_screen.dart';
-import 'register_screen.dart';
-import '../widgets/circle_back_button.dart';
-import '../widgets/app_toast.dart';
 import '../widgets/stream_once.dart';
-=======
->>>>>>> 991372238794561fb409ddfdfc599edcc62a5186
 
 /// Port of the default-exported `PhotoboothBooking` component.
 ///
@@ -377,20 +370,6 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
                       child: Row(
                         children: [
-<<<<<<< HEAD
-                          CircleBackButton(onPressed: () => Navigator.of(context).pushReplacementNamed('/')),
-                          const SizedBox(width: 14),
-                          if (heroPkg != null && heroBytes != null) ...[
-                            Hero(
-                              tag: 'pkg-photo-${heroPkg.id}',
-                              child: Container(
-                                width: 44,
-                                height: 44,
-                                clipBehavior: Clip.antiAlias,
-                                decoration: ShapeDecoration(shape: ContinuousRectangleBorder(borderRadius: BorderRadius.circular(22))),
-                                child: Image.memory(heroBytes, fit: BoxFit.cover, cacheWidth: 132),
-                              ),
-=======
                           GestureDetector(
                             onTap: () => Navigator.of(context).pushReplacementNamed('/'),
                             child: Container(
@@ -399,7 +378,6 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
                               alignment: Alignment.center,
                               decoration: BoxDecoration(color: AppPalette.surface(context), shape: BoxShape.circle),
                               child: Icon(Icons.arrow_back_rounded, size: 22, color: AppPalette.textPrimary(context)),
->>>>>>> 991372238794561fb409ddfdfc599edcc62a5186
                             ),
                           ),
                           const SizedBox(width: 14),
