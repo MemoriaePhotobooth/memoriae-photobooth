@@ -288,7 +288,12 @@ service cloud.firestore {
     match /emailIndex/{key} {
       allow read: if true;
       allow create: if request.auth != null;
-      allow update, delete: if false;
+      allow update: if false;
+      // Deleting your own account frees your email address again: you can
+      // only remove the entry for the email you are signed in with.
+      allow delete: if request.auth != null
+                    && request.auth.token.email != null
+                    && request.auth.token.email.lower() == key;
     }
 
     // What a customer (possibly a guest with no login) may change on a booking.

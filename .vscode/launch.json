@@ -23,6 +23,7 @@
       "deviceId": "chrome",
       "toolArgs": ["--dart-define-from-file=env.json"]
     }
+    
   ]
 }
 //flutter run -d chrome -t lib/main_user.dart --dart-define-from-file=env.json
