@@ -1,6 +1,4 @@
-import '../../shared/top_toast.dart';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -26,38 +24,15 @@ class _RentalLength {
   final Duration value;
   const _RentalLength(this.label, this.value);
 
-  /// Rate card: 1 day = the camera's price (2-4 day rate + ₱50),
-  /// 2-4 days = price - 50 per day, 5-7 days = price - 100 per day,
-  /// 8+ days = the camera's own [rate8Plus] per day (falls back to the 5-7
-  /// rate when not set). Keep in sync with the customer app's
-  /// `RentalDurationOption.priceFor`.
-  int priceFor(int dailyRate, {int rate8Plus = 0, int rate5to7 = 0}) {
-    final days = value.inDays;
-    if (days <= 1) return dailyRate;
-    final r57 = rate5to7 > 0 ? rate5to7 : dailyRate - 100;
-    final int perDay;
-    if (days >= 8) {
-      perDay = rate8Plus > 0 ? rate8Plus : r57;
-    } else if (days >= 5) {
-      perDay = r57;
-    } else {
-      perDay = dailyRate - 50;
-    }
-    return perDay * days;
-  }
+  int priceFor(int dailyRate) => (dailyRate * value.inMinutes / (24 * 60)).ceil();
 }
 
 const List<_RentalLength> _kLengths = [
+  _RentalLength('6 hours', Duration(hours: 6)),
+  _RentalLength('12 hours', Duration(hours: 12)),
   _RentalLength('1 day', Duration(hours: 24)),
   _RentalLength('2 days', Duration(hours: 48)),
   _RentalLength('3 days', Duration(hours: 72)),
-  _RentalLength('4 days', Duration(hours: 96)),
-  _RentalLength('5 days', Duration(hours: 120)),
-  _RentalLength('6 days', Duration(hours: 144)),
-  _RentalLength('7 days', Duration(hours: 168)),
-  _RentalLength('8 days', Duration(hours: 192)),
-  _RentalLength('10 days', Duration(hours: 240)),
-  _RentalLength('14 days', Duration(hours: 336)),
 ];
 
 /// The ID the customer leaves with the shop while they have the camera.
@@ -113,7 +88,7 @@ class _StaffNewRentalScreenState extends State<StaffNewRentalScreen> {
   final Map<String, Uint8List?> _imageCache = {};
 
   String? _cameraId;
-  int _lengthIndex = 0; // 1 day
+  int _lengthIndex = 2; // 1 day
   String? _idType;
   String? _coRel;
   String _payment = 'cash';
@@ -123,78 +98,6 @@ class _StaffNewRentalScreenState extends State<StaffNewRentalScreen> {
   String? _lookupMessage;
   bool _lookupBusy = false;
   bool _submitting = false;
-
-  /// Inline validation messages, keyed by field (name, phone, id, coName,
-  /// coPhone, deposit, condition, cash). Shown right under the field.
-  final Map<String, String> _errors = {};
-
-  /// Fields the staff has already typed in (or tried to submit). Errors are
-  /// recomputed live on every build, but only shown for these fields, so an
-  /// untouched form doesn't open covered in red.
-  final Set<String> _touched = {};
-
-  static const List<String> _allFields = ['name', 'phone', 'id', 'coName', 'coPhone', 'deposit', 'condition', 'cash'];
-
-  /// Realtime validation: marks [key] as touched so its message (if any)
-  /// appears right away and updates/clears with every keystroke.
-  void _clearError(String key) {
-    if (!_touched.contains(key)) {
-      setState(() => _touched.add(key));
-    } else {
-      setState(() {});
-    }
-  }
-
-  /// Every current problem in the form, keyed by field.
-  Map<String, String> _computeErrors(int toCollect) {
-    final name = _nameCtrl.text.trim();
-    final phoneDigits = _normalizePhone(_phoneCtrl.text);
-    final coName = _coNameCtrl.text.trim();
-    final coDigits = _normalizePhone(_coPhoneCtrl.text);
-    final condition = _conditionCtrl.text.trim();
-    final deposit = _deposit;
-    String squash(String v) => v.toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
-
-    final errors = <String, String>{};
-    if (name.isEmpty) {
-      errors['name'] = "Enter the customer's name.";
-    } else if (!_isValidName(name)) {
-      errors['name'] = 'Letters only, 2 to 60 characters.';
-    }
-    if (!_isValidPhMobile(phoneDigits)) {
-      errors['phone'] = 'Must be 11 digits and start with 09 (e.g. 09171234567).';
-    }
-    if (_idType == null) {
-      errors['id'] = 'Select the ID the customer is leaving.';
-    }
-    if (coName.isEmpty) {
-      errors['coName'] = "Enter the co-maker's name.";
-    } else if (!_isValidName(coName)) {
-      errors['coName'] = 'Letters only, 2 to 60 characters.';
-    } else if (squash(coName) == squash(name)) {
-      errors['coName'] = 'The co-maker must be a different person from the customer.';
-    }
-    if (!_isValidPhMobile(coDigits)) {
-      errors['coPhone'] = 'Must be 11 digits and start with 09 (e.g. 09171234567).';
-    } else if (coDigits == phoneDigits) {
-      errors['coPhone'] = "Must be different from the customer's number.";
-    }
-    if (deposit > 99999) {
-      errors['deposit'] = 'Deposit is too large. The maximum is ₱99,999.';
-    }
-    if (condition.length < 5) {
-      errors['condition'] = 'Write the condition and items handed over (at least 5 characters), e.g. "lens clean, 2 batteries, 32GB card".';
-    }
-    if (_payment == 'cash') {
-      final received = int.tryParse(_cashCtrl.text.trim());
-      if (received == null) {
-        errors['cash'] = 'Enter the cash received.';
-      } else if (received < toCollect) {
-        errors['cash'] = 'Cash received is less than ₱$toCollect.';
-      }
-    }
-    return errors;
-  }
 
   @override
   void initState() {
@@ -221,7 +124,7 @@ class _StaffNewRentalScreenState extends State<StaffNewRentalScreen> {
   }
 
   void _toast(String message) {
-    TopToast.show(context, message);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   int get _deposit => int.tryParse(_depositCtrl.text.trim()) ?? 0;
@@ -237,7 +140,7 @@ class _StaffNewRentalScreenState extends State<StaffNewRentalScreen> {
     });
   }
 
-  InputDecoration _deco(String label, {String? prefix, String? hint, IconData? icon, String? error}) {
+  InputDecoration _deco(String label, {String? prefix, String? hint, IconData? icon}) {
     OutlineInputBorder b(Color c, [double w = 1]) =>
         OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: c, width: w));
     return InputDecoration(
@@ -253,11 +156,6 @@ class _StaffNewRentalScreenState extends State<StaffNewRentalScreen> {
       border: b(Colors.transparent),
       enabledBorder: b(Colors.transparent),
       focusedBorder: b(AppColors.accent, 1.4),
-      errorText: error,
-      errorMaxLines: 3,
-      errorStyle: const TextStyle(fontSize: 11.5, color: _warnColor),
-      errorBorder: b(_warnColor, 1.2),
-      focusedErrorBorder: b(_warnColor, 1.4),
     );
   }
 
@@ -283,27 +181,14 @@ class _StaffNewRentalScreenState extends State<StaffNewRentalScreen> {
   // -------------------------------------------------------------------------
 
   Future<void> _lookupAccount() async {
-    var q = _accountCtrl.text.trim();
+    final q = _accountCtrl.text.trim();
     if (q.isEmpty) return;
-    final isEmail = q.contains('@');
-    if (isEmail) {
-      if (!_emailRe.hasMatch(q)) {
-        setState(() => _lookupMessage = 'Enter a valid email address.');
-        return;
-      }
-    } else {
-      // Phone: accept +63 / spaces, then look up the 09XXXXXXXXX form.
-      q = _normalizePhone(q);
-      if (!_isValidPhMobile(q)) {
-        setState(() => _lookupMessage = 'Enter a valid email, or a mobile number with 11 digits starting with 09.');
-        return;
-      }
-    }
     setState(() {
       _lookupBusy = true;
       _lookupMessage = null;
     });
     try {
+      final isEmail = q.contains('@');
       final snap = await FirebaseFirestore.instance
           .collection('users')
           .where(isEmail ? 'email' : 'contactNumber', isEqualTo: isEmail ? q.toLowerCase() : q)
@@ -328,7 +213,7 @@ class _StaffNewRentalScreenState extends State<StaffNewRentalScreen> {
         _linkedName = fullName.isNotEmpty ? fullName : q;
         _lookupMessage = null;
         if (_nameCtrl.text.trim().isEmpty && fullName.isNotEmpty) _nameCtrl.text = fullName;
-        if (_phoneCtrl.text.trim().isEmpty && phone.isNotEmpty) _phoneCtrl.text = _normalizePhone(phone);
+        if (_phoneCtrl.text.trim().isEmpty && phone.isNotEmpty) _phoneCtrl.text = phone;
       });
     } catch (_) {
       if (mounted) setState(() => _lookupMessage = "Couldn't look that up. Check the connection and try again.");
@@ -349,29 +234,6 @@ class _StaffNewRentalScreenState extends State<StaffNewRentalScreen> {
   // Submit
   // -------------------------------------------------------------------------
 
-  /// Letters (incl. ñ), spaces, . ' - only; 2 to 60 characters.
-  static final RegExp _nameChars = RegExp(r"^[a-zA-ZñÑ .'\-]+$");
-  static bool _isValidName(String v) => v.length >= 2 && v.length <= 60 && _nameChars.hasMatch(v);
-
-  /// Blocks digits and symbols while typing a person's name.
-  static final List<TextInputFormatter> _nameFormatters = [
-    FilteringTextInputFormatter.allow(RegExp(r"[a-zA-ZñÑ .'\-]")),
-    LengthLimitingTextInputFormatter(60),
-  ];
-
-  static final RegExp _emailRe = RegExp(r'^[\w.\-+]+@[\w\-]+\.[a-zA-Z]{2,}$');
-
-  /// PH mobile numbers are exactly 11 digits, starting with 09.
-  static bool _isValidPhMobile(String digits) => RegExp(r'^09\d{9}$').hasMatch(digits);
-
-  /// "+63 917 123 4567" / "639171234567" -> "09171234567" (digits only).
-  /// Anything else is returned as plain digits, unchanged.
-  static String _normalizePhone(String raw) {
-    var d = raw.replaceAll(RegExp(r'[^0-9]'), '');
-    if (d.startsWith('63') && d.length == 12) d = '0${d.substring(2)}';
-    return d;
-  }
-
   Future<void> _submit(PricingItemRecord? camera) async {
     if (_submitting) return;
     if (camera == null) {
@@ -379,23 +241,49 @@ class _StaffNewRentalScreenState extends State<StaffNewRentalScreen> {
       return;
     }
     final name = _nameCtrl.text.trim();
-    final phoneDigits = _normalizePhone(_phoneCtrl.text);
+    final phone = _phoneCtrl.text.trim();
+    final phoneDigits = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (name.isEmpty) {
+      _toast("Enter the customer's name.");
+      return;
+    }
+    if (phoneDigits.length < 10 || phoneDigits.length > 13) {
+      _toast('Enter a valid contact number.');
+      return;
+    }
+    if (_idType == null) {
+      _toast('Select the ID the customer is leaving.');
+      return;
+    }
     final coName = _coNameCtrl.text.trim();
-    final coDigits = _normalizePhone(_coPhoneCtrl.text);
-    final condition = _conditionCtrl.text.trim();
+    final coPhone = _coPhoneCtrl.text.trim();
+    final coDigits = coPhone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (coName.isEmpty) {
+      _toast("Enter the co-maker's name.");
+      return;
+    }
+    if (coDigits.length < 10 || coDigits.length > 13) {
+      _toast("Enter a valid contact number for the co-maker.");
+      return;
+    }
+    if (coDigits == phoneDigits) {
+      _toast("The co-maker's number must be different from the customer's.");
+      return;
+    }
+
     final length = _kLengths[_lengthIndex];
-    final fee = length.priceFor(camera.price, rate8Plus: camera.rate8Plus, rate5to7: camera.rate5to7);
+    final fee = length.priceFor(camera.price);
     final deposit = _deposit;
     final toCollect = fee + deposit;
 
-    // Every problem is shown under its own field (and keeps updating live).
-    final errors = _computeErrors(toCollect);
-    if (errors.isNotEmpty) {
-      setState(() => _touched.addAll(_allFields));
-      _toast('Please fix the fields marked in red.');
-      return;
+    int? received;
+    if (_payment == 'cash') {
+      received = int.tryParse(_cashCtrl.text.trim());
+      if (received == null || received < toCollect) {
+        _toast(received == null ? 'Enter the cash received.' : 'Cash received is less than ₱$toCollect.');
+        return;
+      }
     }
-    final int? received = _payment == 'cash' ? int.tryParse(_cashCtrl.text.trim()) : null;
 
     setState(() => _submitting = true);
     try {
@@ -408,13 +296,13 @@ class _StaffNewRentalScreenState extends State<StaffNewRentalScreen> {
         rentalFee: fee,
         userId: _linkedUid ?? 'walk-in',
         customerName: name,
-        customerPhone: phoneDigits,
+        customerPhone: phone,
         idType: _idType!,
         coMakerName: coName,
-        coMakerPhone: coDigits,
+        coMakerPhone: coPhone,
         coMakerRelationship: _coRel ?? '',
         deposit: deposit,
-        conditionNote: condition,
+        conditionNote: _conditionCtrl.text.trim(),
         paymentMethod: _payment,
         amountReceived: received,
         staffId: AuthService.instance.currentUid ?? '',
@@ -431,96 +319,34 @@ class _StaffNewRentalScreenState extends State<StaffNewRentalScreen> {
   }
 
   Future<void> _showSuccess(CameraRentalRecord rental) {
-    final stamp = DateFormat('MMM d, yyyy · h:mm a');
-    String money(int v) => '₱${NumberFormat('#,##0').format(v)}';
-
     return showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) {
-        Widget row(String l, String v, {bool strong = false}) => Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: Text(l, style: TextStyle(fontSize: 12.5, color: AppPalette.textSecondary(dialogContext)))),
-                  const SizedBox(width: 12),
-                  Flexible(
-                    child: Text(
-                      v,
-                      textAlign: TextAlign.right,
-                      style: TextStyle(fontSize: strong ? 14 : 12.5, fontWeight: FontWeight.w800, color: AppPalette.textPrimary(dialogContext)),
-                    ),
-                  ),
-                ],
-              ),
-            );
-        Widget head(String t) => Padding(
-              padding: const EdgeInsets.only(top: 6, bottom: 6),
-              child: Text(t, style: TextStyle(fontSize: 10.5, letterSpacing: 1, fontWeight: FontWeight.w800, color: AppPalette.textMuted(dialogContext))),
-            );
-        final days = (rental.dueAt.difference(rental.rentedAt).inMinutes / (24 * 60)).round();
-        final lengthLabel = days == 1 ? '1 day' : '$days days';
-        final collected = rental.totalPrice + rental.deposit;
-        final received = rental.amountReceived;
-        final change = (rental.paymentMethod == 'cash' && received != null) ? received - collected : null;
-
-        return AlertDialog(
-          scrollable: true,
-          icon: const Icon(Icons.check_circle_rounded, color: _okColor, size: 40),
-          title: const Text('Rental started', textAlign: TextAlign.center),
-          content: SizedBox(
-            width: 380,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Text('Receipt ${RentalReceiptPdf.receiptNo(rental)} · ${stamp.format(rental.rentedAt)}',
-                      style: TextStyle(fontSize: 11.5, color: AppPalette.textMuted(dialogContext))),
-                ),
-                Divider(height: 20, color: AppPalette.divider(dialogContext)),
-                head('CUSTOMER'),
-                row('Name', rental.customerName),
-                row('Contact', rental.customerPhone),
-                if (rental.idType.isNotEmpty) row('ID left with shop', rental.idType),
-                if (rental.hasCoMaker) ...[
-                  head('CO-MAKER'),
-                  row('Name', rental.coMakerName),
-                  row('Contact', rental.coMakerPhone),
-                  if (rental.coMakerRelationship.trim().isNotEmpty) row('Relationship', rental.coMakerRelationship.trim()),
-                ],
-                head('RENTAL'),
-                row('Camera', rental.cameraName),
-                row('Length', lengthLabel),
-                row('Due back', DateFormat('EEE, MMM d · h:mm a').format(rental.dueAt), strong: true),
-                if (rental.conditionNote.trim().isNotEmpty) row('Condition / items', rental.conditionNote.trim()),
-                Divider(height: 20, color: AppPalette.divider(dialogContext)),
-                row('Rental fee', money(rental.totalPrice)),
-                if (rental.deposit > 0) row('Deposit (refundable)', money(rental.deposit)),
-                row('Total collected', money(collected), strong: true),
-                if (rental.paymentMethod.isNotEmpty) row('Paid by', rental.paymentMethod == 'gcash' ? 'GCash' : 'Cash'),
-                if (change != null && change > 0) row('Change', money(change)),
-              ],
-            ),
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.check_circle_rounded, color: _okColor, size: 40),
+        title: const Text('Rental started'),
+        content: Text(
+          '${rental.cameraName} → ${rental.customerName}\n'
+          'Due back ${DateFormat('EEE, MMM d · h:mm a').format(rental.dueAt)}',
+          textAlign: TextAlign.center,
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Done')),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.white),
+            onPressed: () async {
+              try {
+                await RentalReceiptPdf.printReceipt(rental);
+              } catch (_) {
+                if (mounted) _toast("Couldn't open the receipt. You can print it later from the rental card.");
+              }
+            },
+            icon: const Icon(Icons.print_rounded, size: 18),
+            label: const Text('Print / save receipt'),
           ),
-          actionsAlignment: MainAxisAlignment.center,
-          actions: [
-            TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Done')),
-            OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(foregroundColor: AppColors.accent, side: const BorderSide(color: AppColors.accent)),
-              onPressed: () async {
-                try {
-                  await RentalReceiptPdf.printReceipt(rental);
-                } catch (_) {
-                  if (mounted) _toast("Couldn't open the receipt. You can print it later from the rental card.");
-                }
-              },
-              icon: const Icon(Icons.print_rounded, size: 18),
-              label: const Text('Print / save PDF'),
-            ),
-          ],
-        );
-      },
+        ],
+      ),
     );
   }
 
@@ -588,15 +414,9 @@ class _StaffNewRentalScreenState extends State<StaffNewRentalScreen> {
     PricingItemRecord? selected,
   ) {
     final length = _kLengths[_lengthIndex];
-    final fee = selected == null ? 0 : length.priceFor(selected.price, rate8Plus: selected.rate8Plus, rate5to7: selected.rate5to7);
+    final fee = selected == null ? 0 : length.priceFor(selected.price);
     final deposit = _deposit;
     final toCollect = fee + deposit;
-    // Realtime validation: recomputed on every build, shown only for fields
-    // the staff has touched (or after a submit attempt).
-    final liveErrors = _computeErrors(toCollect);
-    _errors
-      ..clear()
-      ..addEntries(liveErrors.entries.where((e) => _touched.contains(e.key)));
     final dueAt = DateTime.now().add(length.value);
     final received = int.tryParse(_cashCtrl.text.trim());
     final change = received == null ? null : received - toCollect;
@@ -628,7 +448,7 @@ class _StaffNewRentalScreenState extends State<StaffNewRentalScreen> {
         children: [
           for (var i = 0; i < _kLengths.length; i++)
             _choice(
-              selected == null ? _kLengths[i].label : '${_kLengths[i].label} · ₱${_kLengths[i].priceFor(selected.price, rate8Plus: selected.rate8Plus, rate5to7: selected.rate5to7)}',
+              selected == null ? _kLengths[i].label : '${_kLengths[i].label} · ₱${_kLengths[i].priceFor(selected.price)}',
               _lengthIndex == i,
               () => setState(() => _lengthIndex = i),
             ),
@@ -649,10 +469,8 @@ class _StaffNewRentalScreenState extends State<StaffNewRentalScreen> {
           TextField(
             controller: _depositCtrl,
             keyboardType: TextInputType.number,
-            // Max 5 digits (₱99,999) so a typo can't become a huge deposit.
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(5)],
-            onChanged: (_) => _clearError('deposit'),
-            decoration: _deco('Deposit (refundable)', prefix: '₱ ', hint: '0 = no deposit', error: _errors['deposit']),
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: _deco('Deposit (refundable)', prefix: '₱ ', hint: '0 = no deposit'),
           ),
           const SizedBox(height: 12),
           TextField(
@@ -660,8 +478,7 @@ class _StaffNewRentalScreenState extends State<StaffNewRentalScreen> {
             maxLines: 3,
             minLines: 2,
             maxLength: 300,
-            onChanged: (_) => _clearError('condition'),
-            decoration: _deco('Condition & items handed over (required)', hint: 'e.g. lens clean, 2 batteries, 32GB card, strap', error: _errors['condition']),
+            decoration: _deco('Condition & items handed over', hint: 'e.g. lens clean, 2 batteries, 32GB card, strap'),
           ),
         ],
       ),
@@ -690,9 +507,8 @@ class _StaffNewRentalScreenState extends State<StaffNewRentalScreen> {
             TextField(
               controller: _cashCtrl,
               keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)],
-              onChanged: (_) => _clearError('cash'),
-              decoration: _deco('Cash received', prefix: '₱ ', error: _errors['cash']),
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: _deco('Cash received', prefix: '₱ '),
             ),
             if (change != null) ...[
               const SizedBox(height: 10),
@@ -973,16 +789,13 @@ class _StaffNewRentalScreenState extends State<StaffNewRentalScreen> {
           TextField(
             controller: _nameCtrl,
             textCapitalization: TextCapitalization.words,
-            inputFormatters: _nameFormatters,
-            onChanged: (_) => _clearError('name'),
-            decoration: _deco('Full name', icon: Icons.person_outline_rounded, error: _errors['name']),
+            decoration: _deco('Full name', icon: Icons.person_outline_rounded),
           ),
           TextField(
             controller: _phoneCtrl,
             keyboardType: TextInputType.phone,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)],
-            onChanged: (_) => _clearError('phone'),
-            decoration: _deco('Contact number', hint: '09XXXXXXXXX', icon: Icons.phone_outlined, error: _errors['phone']),
+            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+ ]'))],
+            decoration: _deco('Contact number', hint: '09XX XXX XXXX', icon: Icons.phone_outlined),
           ),
         ),
         const SizedBox(height: 16),
@@ -993,17 +806,9 @@ class _StaffNewRentalScreenState extends State<StaffNewRentalScreen> {
           runSpacing: 8,
           children: [
             for (final t in _kIdTypes)
-              _choice(t, _idType == t, () => setState(() {
-                    _idType = t;
-                    _touched.add('id');
-                  })),
+              _choice(t, _idType == t, () => setState(() => _idType = t)),
           ],
         ),
-        if (_errors['id'] != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Text(_errors['id']!, style: const TextStyle(fontSize: 11.5, color: _warnColor)),
-          ),
         const SizedBox(height: 4),
         Text('Only the type of ID is saved, never the ID number.', style: TextStyle(fontSize: 11, color: AppPalette.textMuted(context))),
         const SizedBox(height: 16),
@@ -1092,16 +897,13 @@ class _StaffNewRentalScreenState extends State<StaffNewRentalScreen> {
           TextField(
             controller: _coNameCtrl,
             textCapitalization: TextCapitalization.words,
-            inputFormatters: _nameFormatters,
-            onChanged: (_) => _clearError('coName'),
-            decoration: _deco('Co-maker full name', icon: Icons.people_outline_rounded, error: _errors['coName']),
+            decoration: _deco('Co-maker full name', icon: Icons.people_outline_rounded),
           ),
           TextField(
             controller: _coPhoneCtrl,
             keyboardType: TextInputType.phone,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)],
-            onChanged: (_) => _clearError('coPhone'),
-            decoration: _deco('Co-maker contact number', hint: '09XXXXXXXXX', icon: Icons.phone_outlined, error: _errors['coPhone']),
+            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+ ]'))],
+            decoration: _deco('Co-maker contact number', hint: '09XX XXX XXXX', icon: Icons.phone_outlined),
           ),
         ),
         const SizedBox(height: 16),

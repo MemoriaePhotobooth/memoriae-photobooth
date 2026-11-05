@@ -1,4 +1,7 @@
+<<<<<<< HEAD
 import 'package:cloud_firestore/cloud_firestore.dart';
+=======
+>>>>>>> 991372238794561fb409ddfdfc599edcc62a5186
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -8,8 +11,11 @@ import '../services/event_photo_repository.dart';
 import '../services/photo_download.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_palette.dart';
+<<<<<<< HEAD
 import '../widgets/circle_back_button.dart';
 import '../widgets/stream_once.dart';
+=======
+>>>>>>> 991372238794561fb409ddfdfc599edcc62a5186
 
 /// The photos our staff took at the customer's event. Opened from a
 /// booking in My Bookings, so a customer only ever sees photos from their
@@ -37,8 +43,6 @@ class EventPhotosScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppPalette.bg(context),
       appBar: AppBar(
-        leading: const CircleBackButton.appBar(),
-        leadingWidth: CircleBackButton.appBarLeadingWidth,
         backgroundColor: AppPalette.bg(context),
         elevation: 0,
         iconTheme: IconThemeData(color: AppPalette.textPrimary(context)),

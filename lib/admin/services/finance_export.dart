@@ -150,7 +150,7 @@ class FinanceExport {
 
     pw.Widget heading(String t) => pw.Padding(
           padding: const pw.EdgeInsets.only(top: 18, bottom: 6),
-          child: pw.Text(t, style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: _maroon)),
+          child: pw.Text(t, style: const pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: _maroon)),
         );
 
     pw.Widget table(List<String> headers, List<List<String>> rows, {Map<int, pw.Alignment>? align}) {
@@ -160,12 +160,12 @@ class FinanceExport {
       return pw.TableHelper.fromTextArray(
         headers: headers,
         data: rows,
-        headerStyle: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+        headerStyle: const pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.white),
         headerDecoration: const pw.BoxDecoration(color: _maroon),
         cellStyle: const pw.TextStyle(fontSize: 8),
         cellAlignments: align,
         cellPadding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-        border: pw.TableBorder(horizontalInside: const pw.BorderSide(color: PdfColors.grey300, width: 0.5)),
+        border: const pw.TableBorder(horizontalInside: pw.BorderSide(color: PdfColors.grey300, width: 0.5)),
       );
     }
 
@@ -191,7 +191,7 @@ class FinanceExport {
           child: pw.Text('Page ${ctx.pageNumber} of ${ctx.pagesCount}', style: const pw.TextStyle(fontSize: 8, color: _grey)),
         ),
         build: (ctx) => [
-          pw.Text('Memoriae Photobooth', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: _maroon)),
+          pw.Text('Memoriae Photobooth', style: const pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: _maroon)),
           pw.SizedBox(height: 2),
           pw.Text('Financial Report', style: const pw.TextStyle(fontSize: 12)),
           pw.Text('${r.periodLabel}  |  Generated ${_dateTime.format(DateTime.now())}', style: const pw.TextStyle(fontSize: 9, color: _grey)),

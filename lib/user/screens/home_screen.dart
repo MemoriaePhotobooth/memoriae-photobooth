@@ -14,7 +14,6 @@ import '../theme/app_colors.dart';
 import '../theme/app_palette.dart';
 import '../widgets/announcement_banner.dart';
 import '../widgets/notification_bell.dart';
-import '../widgets/profile_avatar.dart';
 import 'info_pages.dart';
 import 'my_bookings_screen.dart';
 import '../widgets/stream_once.dart';
@@ -123,9 +122,6 @@ class _HomeScreenState extends State<HomeScreen> {
   // Package carousel: its own controller so the page dots can follow it.
   final ScrollController _carousel = ScrollController();
   int _carouselIndex = 0;
-  // The carousel loops forever: it starts far from offset 0 so the user can
-  // keep swiping past the last package and land on the first one again.
-  bool _carouselPositioned = false;
   bool _scrolled = false;
 
   // Decoded package photos, cached so typing in the search box doesn't
@@ -183,8 +179,10 @@ class _HomeScreenState extends State<HomeScreen> {
     return (parts.first[0] + parts.last[0]).toUpperCase();
   }
 
-  /// Maroon on light; a lighter maroon tint on the dark theme.
-  Color _accentText(BuildContext context) => AppColors.accentText(context);
+  /// The brand maroon is too dark to read on the dark theme, so text that
+  /// uses the accent colour switches to a lighter tint there.
+  Color _accentText(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? const Color(0xFFE57F84) : AppColors.accent;
 
   void _goToBooking(BuildContext context, {DateTime? date, BoothPackage? pkg, int? guests}) {
     Navigator.of(context).pushReplacementNamed(
@@ -313,9 +311,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _reveal(0, _buildHeader(context)),
-                    const SizedBox(height: 18),
-                    _reveal(1, _buildHeroBanner(context)),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 16),
                     const AnnouncementBanner(),
                     _buildApprovalBanner(context),
                     _buildNextBooking(context),
@@ -479,93 +475,42 @@ class _HomeScreenState extends State<HomeScreen> {
     final initials = _initials;
     final first = _firstName;
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        _Pressable(
-          onTap: () => Navigator.of(context).pushReplacementNamed('/profile'),
-          child: ProfileAvatar(
-            size: 46,
-            color: AppColors.accent,
-            fallback: initials.isEmpty
-                ? const Icon(CupertinoIcons.person_fill, color: AppColors.onAccent, size: 20)
-                : Text(initials, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.onAccent)),
-          ),
-        ),
-        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                "Welcome back",
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: AppPalette.textMuted(context)),
+                DateFormat('EEEE, MMMM d').format(DateTime.now()).toUpperCase(),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, letterSpacing: 0.2, color: AppPalette.textMuted(context)),
               ),
-              const SizedBox(height: 1),
+              const SizedBox(height: 2),
               Text(
-                first.isEmpty ? "Guest" : first,
+                first.isEmpty ? "Welcome" : "Hello, $first",
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, letterSpacing: -0.3, color: AppPalette.textPrimary(context)),
+                style: TextStyle(fontSize: 34, fontWeight: FontWeight.w700, letterSpacing: -0.9, height: 1.12, color: AppPalette.textPrimary(context)),
               ),
             ],
           ),
         ),
         const SizedBox(width: 12),
         NotificationBell(userId: _uid, background: AppPalette.groupedCard(context)),
+        const SizedBox(width: 10),
+        _Pressable(
+          onTap: () => Navigator.of(context).pushReplacementNamed('/profile'),
+          child: Container(
+            width: 44,
+            height: 44,
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(color: AppColors.accent, shape: BoxShape.circle),
+            child: initials.isEmpty
+                ? const Icon(CupertinoIcons.person_fill, color: Colors.white, size: 20)
+                : Text(initials, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
+          ),
+        ),
       ],
-    );
-  }
-
-  /// Big feature card under the header ("Explore new collection" in the
-  /// reference design) - jumps straight into booking.
-  Widget _buildHeroBanner(BuildContext context) {
-    return _Pressable(
-      onTap: () => _goToBooking(context, date: _searchDate, guests: _guests),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(20, 20, 16, 20),
-        decoration: BoxDecoration(
-          gradient: AppGradients.card,
-          borderRadius: BorderRadius.circular(26),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Capture your\nbest moments",
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, height: 1.15, letterSpacing: -0.4, color: Colors.white),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                    decoration: const ShapeDecoration(shape: StadiumBorder(), color: Colors.white),
-                    child: const Text(
-                      "Book now",
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.accent),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Container(
-              width: 86,
-              height: 86,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.10),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
-              ),
-              child: const Icon(CupertinoIcons.camera_fill, size: 38, color: Colors.white),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -628,17 +573,17 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(CupertinoIcons.calendar, size: 19, color: hasDate ? AppColors.onAccent : _accentText(context)),
+                Icon(CupertinoIcons.calendar, size: 19, color: hasDate ? Colors.white : _accentText(context)),
                 if (hasDate) ...[
                   const SizedBox(width: 6),
                   Text(
                     DateFormat('MMM d').format(_searchDate!),
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.onAccent),
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white),
                   ),
                   const SizedBox(width: 8),
                   GestureDetector(
                     onTap: () => setState(() => _searchDate = null),
-                    child: const Icon(CupertinoIcons.xmark_circle_fill, size: 16, color: AppColors.onAccent),
+                    child: const Icon(CupertinoIcons.xmark_circle_fill, size: 16, color: Colors.white70),
                   ),
                 ],
               ],
@@ -772,7 +717,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           child: Text(
             label,
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: selected ? AppColors.onAccent : AppPalette.textPrimary(context)),
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: selected ? Colors.white : AppPalette.textPrimary(context)),
           ),
         ),
       );
@@ -869,33 +814,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildPackageCarousel(BuildContext context, List<_FeaturedPackage> items) {
     final cardWidth = _cardStep - 14;
-    final n = items.length;
-    final loop = n > 1;
-    final active = n == 0 ? 0 : _carouselIndex % n;
-    if (loop && !_carouselPositioned) {
-      _carouselPositioned = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_carousel.hasClients) return;
-        _carousel.jumpTo(n * 1000 * _cardStep);
-      });
-    }
+    final active = _carouselIndex.clamp(0, items.length - 1);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(
           height: 424,
-          child: ListView.builder(
+          child: ListView.separated(
             controller: _carousel,
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-            // null itemCount (when there is more than one package) = endless
-            // list, so after the last card it wraps to the first.
-            itemCount: loop ? null : n,
-            itemBuilder: (context, i) => Padding(
-              padding: const EdgeInsets.only(right: 14),
-              child: SizedBox(width: cardWidth, child: _buildPackageCard(context, items[i % n], hero: !loop || (i >= _carouselIndex && i < _carouselIndex + n))),
-            ),
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 14),
+            itemBuilder: (context, i) => SizedBox(width: cardWidth, child: _buildPackageCard(context, items[i])),
           ),
         ),
         // Page dots: one per package, the one in front is a longer pill.
@@ -926,7 +858,7 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Large photo card in the style of the App Store's Today cards: caption
   /// and title over the photo, a frosted bar along the bottom with the
   /// duration, price and a capsule "BOOK" button.
-  Widget _buildPackageCard(BuildContext context, _FeaturedPackage p, {bool hero = true}) {
+  Widget _buildPackageCard(BuildContext context, _FeaturedPackage p) {
     final photo = _photo(p.pkg.imageUrl);
     const panelColor = Color(0xFF2E2A26);
 
@@ -948,9 +880,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 fit: StackFit.expand,
                 children: [
                   if (photo != null)
+<<<<<<< HEAD
                     (hero
                         ? Hero(tag: 'pkg-photo-${p.id}', child: Image.memory(photo, fit: BoxFit.cover, cacheWidth: 900, gaplessPlayback: true))
                         : Image.memory(photo, fit: BoxFit.cover, cacheWidth: 900, gaplessPlayback: true))
+=======
+                    Hero(tag: 'pkg-photo-${p.id}', child: Image.memory(photo, fit: BoxFit.cover))
+>>>>>>> 991372238794561fb409ddfdfc599edcc62a5186
                   else
                     DecoratedBox(
                       decoration: const BoxDecoration(
@@ -986,10 +922,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: ShapeDecoration(shape: const StadiumBorder(), color: AppColors.accent),
+                          decoration: const ShapeDecoration(shape: StadiumBorder(), color: AppColors.accent),
                           child: Text(
                             p.tag.toUpperCase(),
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.4, color: AppColors.onAccent),
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.4, color: Colors.white),
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -997,7 +933,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           p.name,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w700, height: 1.08, letterSpacing: -0.8, color: AppColors.onAccent),
+                          style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w700, height: 1.08, letterSpacing: -0.8, color: Colors.white),
                         ),
                       ],
                     ),
@@ -1032,8 +968,13 @@ class _HomeScreenState extends State<HomeScreen> {
                         alignment: Alignment.center,
                         decoration: ShapeDecoration(shape: _squircle(11), color: AppColors.accent),
                         child: photo != null
+<<<<<<< HEAD
                             ? Image.memory(photo, width: 44, height: 44, fit: BoxFit.cover, cacheWidth: 132)
                             : const Icon(CupertinoIcons.camera_fill, size: 20, color: AppColors.onAccent),
+=======
+                            ? Image.memory(photo, width: 44, height: 44, fit: BoxFit.cover)
+                            : const Icon(CupertinoIcons.camera_fill, size: 20, color: Colors.white),
+>>>>>>> 991372238794561fb409ddfdfc599edcc62a5186
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -1048,7 +989,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
                             ),
                             const SizedBox(height: 1),
-                            Text(formatPeso(p.price), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFFE57F84))),
+                            Text(formatPeso(p.price), style: const TextStyle(fontSize: 14, color: Colors.white70)),
                           ],
                         ),
                       ),
@@ -1056,7 +997,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                         decoration: ShapeDecoration(shape: const StadiumBorder(), color: Colors.white.withValues(alpha: 0.92)),
-                        child: const Text("BOOK", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.accent)),
+                        child: const Text("BOOK", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.accent)),
                       ),
                     ],
                   ),
@@ -1170,7 +1111,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHowItWorks(BuildContext context) {
     final steps = [
-      (CupertinoIcons.square_grid_2x2_fill, AppColors.accent, "Choose a package", "Pick the duration and add-ons that fit your event"),
+      (CupertinoIcons.square_grid_2x2_fill, const Color(0xFF6E1B1E), "Choose a package", "Pick the duration and add-ons that fit your event"),
       (CupertinoIcons.calendar, const Color(0xFFC9962E), "Pick date & time", "Reserve a slot that works for your schedule"),
       (CupertinoIcons.checkmark_seal_fill, const Color(0xFF34C759), "Confirm & pay", "Upload your receipt and you're booked"),
     ];
@@ -1192,7 +1133,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       height: 34,
                       alignment: Alignment.center,
                       decoration: ShapeDecoration(shape: _squircle(8), color: color),
-                      child: Icon(icon, size: 18, color: AppColors.onAccent),
+                      child: Icon(icon, size: 18, color: Colors.white),
                     ),
                     const SizedBox(width: 14),
                     Expanded(

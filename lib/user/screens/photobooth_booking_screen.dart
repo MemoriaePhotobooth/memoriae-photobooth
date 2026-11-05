@@ -17,11 +17,14 @@ import '../widgets/addon_selector.dart';
 import '../widgets/receipt_upload_modal.dart';
 import '../widgets/location_picker_screen.dart';
 import 'booking_success_screen.dart';
+<<<<<<< HEAD
 import 'login_screen.dart';
 import 'register_screen.dart';
 import '../widgets/circle_back_button.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/stream_once.dart';
+=======
+>>>>>>> 991372238794561fb409ddfdfc599edcc62a5186
 
 /// Port of the default-exported `PhotoboothBooking` component.
 ///
@@ -86,7 +89,7 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
   void _onDateChanged(DateTime date) => setState(() => _selectedDate = date);
 
   void _showDateTakenSnack(String message) {
-    AppToast.show(context, message);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _pickLocation() async {
@@ -214,13 +217,6 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
       return;
     }
     if (!_canSubmit) return;
-    // Booking needs an account (payments and refunds are tied to it). Guests
-    // can browse, but are asked to log in or register at this point.
-    if (!AuthService.instance.isLoggedIn) {
-      final loggedIn = await _askToSignIn();
-      if (loggedIn && mounted) await _handleBookNow();
-      return;
-    }
     setState(() => _submitting = true);
     try {
       final user = await AuthService.instance.me();
@@ -267,40 +263,10 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
 
       if (!mounted) return;
       setState(() => _submitting = false);
-      AppToast.show(context, "Couldn't hold that slot: $message");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Couldn't hold that slot: $message")),
+      );
     }
-  }
-
-  /// "Log in or register to book" prompt for guests. Returns true once the
-  /// person has logged in (or registered and logged in).
-  Future<bool> _askToSignIn() async {
-    final choice = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Log in to book"),
-        content: const Text(
-          "You need an account to book. It keeps your bookings, payment receipts and any refund in one place. "
-          "Your selected package and date will be kept.",
-        ),
-        actionsAlignment: MainAxisAlignment.end,
-        actionsOverflowButtonSpacing: 4,
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Not now")),
-          OutlinedButton(onPressed: () => Navigator.pop(ctx, 'register'), child: const Text("Register")),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.accent),
-            onPressed: () => Navigator.pop(ctx, 'login'),
-            child: const Text("Log in"),
-          ),
-        ],
-      ),
-    );
-    if (choice == null || !mounted) return false;
-    final result = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => choice == 'register' ? const RegisterScreen() : const LoginScreen()),
-    );
-    return result == true && AuthService.instance.isLoggedIn;
   }
 
   /// Opens the receipt-upload modal for the hold just placed, anchored to
@@ -398,10 +364,6 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
       );
     }
 
-    // Package photo for the Hero flight from the Home carousel card.
-    final heroPkg = _selectedPkg;
-    final heroBytes = heroPkg == null || heroPkg.imageUrl.isEmpty ? null : decodeDataUriImage(heroPkg.imageUrl);
-
     return Stack(
       children: [
         Column(
@@ -415,6 +377,7 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
                       child: Row(
                         children: [
+<<<<<<< HEAD
                           CircleBackButton(onPressed: () => Navigator.of(context).pushReplacementNamed('/')),
                           const SizedBox(width: 14),
                           if (heroPkg != null && heroBytes != null) ...[
@@ -427,9 +390,19 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
                                 decoration: ShapeDecoration(shape: ContinuousRectangleBorder(borderRadius: BorderRadius.circular(22))),
                                 child: Image.memory(heroBytes, fit: BoxFit.cover, cacheWidth: 132),
                               ),
+=======
+                          GestureDetector(
+                            onTap: () => Navigator.of(context).pushReplacementNamed('/'),
+                            child: Container(
+                              width: 44,
+                              height: 44,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(color: AppPalette.surface(context), shape: BoxShape.circle),
+                              child: Icon(Icons.arrow_back_rounded, size: 22, color: AppPalette.textPrimary(context)),
+>>>>>>> 991372238794561fb409ddfdfc599edcc62a5186
                             ),
-                            const SizedBox(width: 12),
-                          ],
+                          ),
+                          const SizedBox(width: 14),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -565,7 +538,7 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
                         style: ElevatedButton.styleFrom(
                           backgroundColor: (_holdMinimized || _canSubmit) ? AppColors.accent : AppPalette.surface(context),
                           disabledBackgroundColor: AppPalette.surface(context),
-                          foregroundColor: (_holdMinimized || _canSubmit) ? AppColors.onAccent : const Color(0xFF9CA3AF),
+                          foregroundColor: (_holdMinimized || _canSubmit) ? Colors.white : const Color(0xFF9CA3AF),
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                           elevation: 0,
                           shape: const StadiumBorder(),
@@ -577,7 +550,7 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
                               const SizedBox(
                                 width: 16,
                                 height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onAccent),
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                               ),
                               const SizedBox(width: 10),
                               const Flexible(
@@ -700,7 +673,7 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
                     child: Icon(
                       done[i] ? Icons.check_rounded : icons[i],
                       size: 18,
-                      color: done[i] ? AppColors.onAccent : AppPalette.textMuted(context),
+                      color: done[i] ? Colors.white : AppPalette.textMuted(context),
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -832,15 +805,15 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
       width: double.infinity,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF8A2429), Color(0xFF3A1214)]),
+        gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [AppColors.accent, Color(0xFF3A1214)]),
         borderRadius: BorderRadius.circular(28),
         boxShadow: AppShadows.accentGlow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
+          const Padding(
+            padding: EdgeInsets.only(bottom: 4),
             child: Text("Booking Summary", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
           ),
           _summaryRow(context, "Package", _selectedPkg?.name ?? "—"),
@@ -853,14 +826,14 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
           _summaryRow(context, "Duration", _selectedPkg?.duration ?? "—"),
           if (_guests != null) _summaryRow(context, "Guests", '$_guests'),
           for (final a in _selectedAddOns) _summaryRow(context, a.name, "+${formatPeso(a.price)}"),
-          Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Divider(height: 1, color: Colors.white24)),
+          const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Divider(height: 1, color: Colors.white24)),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("Total", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+              const Text("Total", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
               Text(
                 formatPeso(_grandTotal),
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
               ),
             ],
           ),
@@ -873,20 +846,10 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          SizedBox(
-            width: 92,
-            child: Text(label, style: const TextStyle(fontSize: 12, color: Colors.white70)),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              value,
-              textAlign: TextAlign.end,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
-            ),
-          ),
+          Text(label, style: const TextStyle(fontSize: 12, color: Colors.white70)),
+          Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
         ],
       ),
     );

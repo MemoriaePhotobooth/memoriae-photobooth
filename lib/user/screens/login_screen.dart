@@ -36,49 +36,20 @@ class _LoginScreenState extends State<LoginScreen> {
   void initState() {
     super.initState();
     if (widget.prefillEmail != null) _emailController.text = widget.prefillEmail!;
-    _emailFocus.addListener(() {
-      if (!_emailFocus.hasFocus) setState(() => _emailTouched = true);
-    });
-    _passwordFocus.addListener(() {
-      if (!_passwordFocus.hasFocus) setState(() => _passwordTouched = true);
-    });
   }
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
-    _emailFocus.dispose();
-    _passwordFocus.dispose();
     super.dispose();
   }
-
-  // Realtime validation: shown once the field has been left (or a login was
-  // attempted), then updates live.
-  bool _emailTouched = false;
-  bool _passwordTouched = false;
-  final _emailFocus = FocusNode();
-  final _passwordFocus = FocusNode();
-  static final RegExp _emailRe = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
-
-  String? get _emailError {
-    final v = _emailController.text.trim();
-    if (v.isEmpty) return 'Enter your email.';
-    if (!_emailRe.hasMatch(v)) return 'Enter a valid email address.';
-    return null;
-  }
-
-  String? get _passwordError => _passwordController.text.isEmpty ? 'Enter your password.' : null;
 
   Future<void> _submit() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
     if (email.isEmpty || password.isEmpty) {
-      setState(() {
-        _emailTouched = true;
-        _passwordTouched = true;
-        _error = "Enter your email and password.";
-      });
+      setState(() => _error = "Enter your email and password.");
       return;
     }
 
@@ -138,9 +109,9 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Row(
+                  const Row(
                     children: [
-                      const CircleBackButton(),
+                      CircleBackButton(),
                     ],
                   ),
                   const SizedBox(height: 4),
@@ -168,12 +139,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   _field(
                     context,
                     controller: _emailController,
-                    focusNode: _emailFocus,
                     hint: "you@email.com",
                     icon: Icons.mail_outline,
                     keyboardType: TextInputType.emailAddress,
-                    errorText: _emailTouched ? _emailError : null,
-                    onChanged: (_) => setState(() => _error = null),
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -184,13 +152,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   _field(
                     context,
                     controller: _passwordController,
-                    focusNode: _passwordFocus,
                     hint: "Your password",
                     icon: Icons.lock_outline,
                     obscure: _obscure,
                     onToggleObscure: () => setState(() => _obscure = !_obscure),
-                    errorText: _passwordTouched ? _passwordError : null,
-                    onChanged: (_) => setState(() => _error = null),
                   ),
                   Align(
                     alignment: Alignment.centerRight,
@@ -207,12 +172,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 14),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      decoration: BoxDecoration(color: const Color(0xFFE5484D).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
+                      decoration: BoxDecoration(color: AppColors.accentTint(0.08), borderRadius: BorderRadius.circular(12)),
                       child: Row(
                         children: [
-                          const Icon(Icons.error_outline, size: 16, color: Color(0xFFE5484D)),
+                          const Icon(Icons.error_outline, size: 16, color: AppColors.accent),
                           const SizedBox(width: 8),
-                          Expanded(child: Text(_error!, style: const TextStyle(fontSize: 12, color: Color(0xFFE5484D)))),
+                          Expanded(child: Text(_error!, style: const TextStyle(fontSize: 12, color: AppColors.accent))),
                         ],
                       ),
                     ),
@@ -224,15 +189,15 @@ class _LoginScreenState extends State<LoginScreen> {
                       onPressed: _loading ? null : _submit,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.accent,
-                        foregroundColor: AppColors.onAccent,
+                        foregroundColor: Colors.white,
                         elevation: 0,
-                        shape: const StadiumBorder(),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
                       child: _loading
                           ? const SizedBox(
                               width: 18,
                               height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onAccent),
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                             )
                           : const Text("Log In", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                     ),
@@ -250,9 +215,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: RichText(
                         text: TextSpan(
                           style: TextStyle(fontSize: 13, color: AppPalette.textMuted(context)),
-                          children: [
-                            const TextSpan(text: "Don't have an account? "),
-                            TextSpan(text: "Register", style: TextStyle(color: AppColors.accentText(context), fontWeight: FontWeight.bold)),
+                          children: const [
+                            TextSpan(text: "Don't have an account? "),
+                            TextSpan(text: "Register", style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold)),
                           ],
                         ),
                       ),
@@ -300,7 +265,7 @@ class _LoginScreenState extends State<LoginScreen> {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF8A2429), Color(0xFF3A1214)],
+          colors: [AppColors.accent, Color(0xFF9A3236)],
         ),
         borderRadius: BorderRadius.circular(28),
         boxShadow: AppShadows.accentGlow,
@@ -343,24 +308,18 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _field(
     BuildContext context, {
     required TextEditingController controller,
-    FocusNode? focusNode,
     required String hint,
     required IconData icon,
     TextInputType? keyboardType,
     bool obscure = false,
     VoidCallback? onToggleObscure,
-    String? errorText,
-    ValueChanged<String>? onChanged,
   }) {
     return TextField(
       controller: controller,
-      focusNode: focusNode,
       obscureText: obscure,
       keyboardType: keyboardType,
-      onChanged: onChanged,
       style: TextStyle(color: AppPalette.textPrimary(context), fontSize: 14),
       decoration: InputDecoration(
-        errorText: errorText,
         hintText: hint,
         hintStyle: TextStyle(color: AppPalette.textMuted(context), fontSize: 13),
         filled: true,
@@ -506,7 +465,7 @@ class _ForgotPasswordDialogState extends State<_ForgotPasswordDialog> {
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 12),
-                    Text(_error!, style: const TextStyle(fontSize: 12, color: Color(0xFFE5484D))),
+                    Text(_error!, style: const TextStyle(fontSize: 12, color: AppColors.accent)),
                   ],
                 ],
               ),
@@ -525,7 +484,7 @@ class _ForgotPasswordDialogState extends State<_ForgotPasswordDialog> {
                 style: FilledButton.styleFrom(backgroundColor: AppColors.accent),
                 onPressed: (_sending || _waitSeconds > 0) ? null : _send,
                 child: _sending
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onAccent))
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                     : Text(_waitSeconds > 0 ? "Send again in ${_waitSeconds}s" : "Send Link"),
               ),
             ],

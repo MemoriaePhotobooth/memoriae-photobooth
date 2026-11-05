@@ -24,8 +24,8 @@ class StaffOfflineStrip extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: const Color(0xFFE08A00).withValues(alpha: 0.4)),
           ),
-          child: Row(
-            children: const [
+          child: const Row(
+            children: [
               Icon(Icons.cloud_off_rounded, size: 18, color: Color(0xFFE08A00)),
               SizedBox(width: 10),
               Expanded(
