@@ -61,3 +61,8 @@ Android pop-up details:
 - After changing sound/channel, uninstall and reinstall the app once (Android
   remembers a channel's old sound).
 - `cd functions && node --test payload.test.js` checks the push payload.
+
+   ## Live sites
+   - Admin: https://memoriae-admin.web.app
+   - Staff: https://memoriae-staff.web.app
+   - User: https://memoriae-user.web.app
