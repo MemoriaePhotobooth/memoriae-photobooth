@@ -4,6 +4,10 @@ import '../shared/app_picker_theme.dart';
 import 'theme/app_colors.dart';
 import 'theme/theme_controller.dart';
 import 'screens/admin_welcome_screen.dart';
+import 'screens/admin_dashboard_screen.dart';
+import 'services/admin_push_service.dart';
+import 'services/admin_service.dart';
+import 'theme/app_palette.dart';
 
 /// Firebase-backed build — AdminService checks against a real `admins/{uid}`
 /// Firestore collection, and BookingRepository reads/writes the same live
@@ -119,8 +123,46 @@ class AdminApp extends StatelessWidget {
               actionTextColor: const Color(0xFFE0B24C),
             ),
           ),
-          home: const AdminWelcomeScreen(),
+          home: const _AdminRoot(),
         );
+      },
+    );
+  }
+}
+
+/// Start screen of the Admin app.
+///
+/// Refreshing the browser used to always drop you back on the welcome page,
+/// because that page was hard-wired as `home`. Firebase Auth already keeps the
+/// session in the browser, so here we check it first: a signed-in admin (with
+/// an active `admins/{uid}` doc) goes straight to the dashboard, everyone else
+/// sees the welcome page. Logging out still works — the dashboard replaces
+/// itself with the login screen.
+class _AdminRoot extends StatefulWidget {
+  const _AdminRoot();
+
+  @override
+  State<_AdminRoot> createState() => _AdminRootState();
+}
+
+class _AdminRootState extends State<_AdminRoot> {
+  late final Future<bool> _check = AdminService.instance.isCurrentUserAdmin().then((ok) {
+    if (ok) AdminPushService.register();
+    return ok;
+  }).catchError((_) => false);
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: _check,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return Scaffold(
+            backgroundColor: AppPalette.bg(context),
+            body: const Center(child: CircularProgressIndicator(color: AppColors.accent)),
+          );
+        }
+        return (snapshot.data ?? false) ? const AdminDashboardScreen() : const AdminWelcomeScreen();
       },
     );
   }

@@ -4,6 +4,10 @@ import '../shared/app_picker_theme.dart';
 import 'theme/app_colors.dart';
 import 'theme/theme_controller.dart';
 import 'screens/staff_landing_screen.dart';
+import 'screens/staff_dashboard_screen.dart';
+import 'services/auth_service.dart';
+import 'services/staff_push_service.dart';
+import 'theme/app_palette.dart';
 
 /// Firebase-backed build — sign-in uses Firebase Authentication plus a
 /// `staff/{uid}` Firestore document, and the dashboard reads the live
@@ -120,8 +124,46 @@ class StaffApp extends StatelessWidget {
               actionTextColor: const Color(0xFFE0B24C),
             ),
           ),
-          home: const StaffLandingScreen(),
+          home: const _StaffRoot(),
         );
+      },
+    );
+  }
+}
+
+/// Start screen of the Staff app.
+///
+/// Refreshing the browser used to always drop you back on the landing page,
+/// because that page was hard-wired as `home`. Firebase Auth already keeps the
+/// session in the browser, so here we check it first: a signed-in staff member (with
+/// an active `staff/{uid}` doc) goes straight to the dashboard, everyone else
+/// sees the landing page. Logging out still works — the dashboard replaces
+/// itself with the login screen.
+class _StaffRoot extends StatefulWidget {
+  const _StaffRoot();
+
+  @override
+  State<_StaffRoot> createState() => _StaffRootState();
+}
+
+class _StaffRootState extends State<_StaffRoot> {
+  late final Future<bool> _check = AuthService.instance.isCurrentUserStaff().then((ok) {
+    if (ok) StaffPushService.register();
+    return ok;
+  }).catchError((_) => false);
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: _check,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return Scaffold(
+            backgroundColor: AppPalette.bg(context),
+            body: const Center(child: CircularProgressIndicator(color: AppColors.accent)),
+          );
+        }
+        return (snapshot.data ?? false) ? const StaffDashboardScreen() : const StaffLandingScreen();
       },
     );
   }
