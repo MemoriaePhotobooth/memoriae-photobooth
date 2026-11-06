@@ -1,0 +1,19 @@
+{
+  "projects": {},
+  "targets": {
+    "memoriae-photobooth-3897b": {
+      "hosting": {
+        "admin": [
+          "memoriae-admin"
+        ],
+        "staff": [
+          "memoriae-staff"
+        ],
+        "user": [
+          "memoriae-user"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}
