@@ -71,6 +71,14 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
 
   static final _emailPattern = RegExp(r'^[\w\.\-\+]+@[\w\-]+\.[\w\-\.]+$');
 
+  /// Hard limits — the fields stop accepting input once these are reached.
+  static const int _nameMax = 30;
+  static const int _phoneLen = 11;
+
+  /// Newest set of taken dates from the live stream, so the date picker and
+  /// the pick-check always use fresh data (not what it was when it opened).
+  Set<DateTime> _latestLocked = <DateTime>{};
+
   @override
   void initState() {
     super.initState();
@@ -82,6 +90,7 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
       'occasion': _occasionController,
     });
     _draft.restore(() {
+      _sanitizeRestored();
       if (mounted) setState(() {});
     });
     _emailFocus.addListener(() {
@@ -104,6 +113,25 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
   // ───────────────────────── helpers ─────────────────────────
 
   static DateTime _day(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  String _clipName(String s) {
+    final v = s.trim();
+    return v.length > _nameMax ? v.substring(0, _nameMax).trimRight() : v;
+  }
+
+  String _cleanPhone(String s) {
+    final digits = s.replaceAll(RegExp(r'\D'), '');
+    return digits.length > _phoneLen ? digits.substring(0, _phoneLen) : digits;
+  }
+
+  /// A saved draft (or an autofilled customer) can hold text from before the
+  /// limits existed — trim it to what the fields would accept.
+  void _sanitizeRestored() {
+    final n = _clipName(_nameController.text);
+    if (n != _nameController.text) _nameController.text = n;
+    final p = _cleanPhone(_contactController.text);
+    if (p != _contactController.text) _contactController.text = p;
+  }
 
   bool _isLocked(DateTime d, Set<DateTime> locked) => locked.any((l) => _day(l) == _day(d));
 
@@ -149,7 +177,7 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
 
   Future<void> _lookupEmail() async {
     final email = _emailController.text.trim();
-    if (!_emailPattern.hasMatch(email) || email == _lastLookedUpEmail) return;
+    if (!_emailPattern.hasMatch(email) || _vEmail(email) != null || email == _lastLookedUpEmail) return;
     _lastLookedUpEmail = email;
     setState(() => _lookingUp = true);
     try {
@@ -158,8 +186,8 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
       setState(() {
         _matchedUserId = match?['uid'] as String?;
         if (match != null) {
-          if (_nameController.text.trim().isEmpty) _nameController.text = (match['fullName'] ?? '') as String;
-          if (_contactController.text.trim().isEmpty) _contactController.text = (match['contactNumber'] ?? '') as String;
+          if (_nameController.text.trim().isEmpty) _nameController.text = _clipName((match['fullName'] ?? '') as String);
+          if (_contactController.text.trim().isEmpty) _contactController.text = _cleanPhone((match['contactNumber'] ?? '') as String);
         }
       });
     } catch (_) {
@@ -181,8 +209,17 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
       initialDate: initial,
       firstDate: first,
       lastDate: first.add(const Duration(days: 365)),
-      selectableDayPredicate: (d) => !_isLocked(d, locked),
+      helpText: 'Select an available date',
+      // Read the live set so a date someone books while this calendar is
+      // open greys out right away.
+      selectableDayPredicate: (d) => !_isLocked(d, _latestLocked),
     );
+    if (picked != null && _isLocked(picked, _latestLocked)) {
+      if (mounted) {
+        TopToast.show(context, "That date was just taken by another booking — pick a different date.", kind: TopToastKind.error);
+      }
+      return;
+    }
     if (picked != null) {
       setState(() {
       _date = picked;
@@ -202,22 +239,65 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
     final s = (v ?? '').trim();
     if (s.isEmpty) return "Enter the customer's name.";
     if (s.length < 2) return "Name is too short.";
-    if (RegExp(r'^[\d\W]+$').hasMatch(s)) return "Enter a real name.";
+    if (s.length > _nameMax) return "Name can be $_nameMax characters at most.";
+    if (!RegExp(r"^[\p{L}][\p{L}\s.'\-]*$", unicode: true).hasMatch(s)) {
+      return "Letters only — no numbers or symbols.";
+    }
     return null;
   }
 
+  /// Same email rules as the User app's register screen, so a walk-in
+  /// customer's address is checked exactly like an online sign-up.
   String? _vEmail(String? v) {
-    final s = (v ?? '').trim();
-    if (s.isEmpty) return "Enter an email address.";
-    if (!_emailPattern.hasMatch(s)) return "That email doesn't look right.";
+    final value = (v ?? '').trim();
+    if (value.isEmpty) return "Enter an email address.";
+    if (value.length > 254) return "Email is too long.";
+    if (RegExp(r'\s').hasMatch(value)) return "Email can't contain spaces.";
+    if (value.contains('..')) return "Email can't have two dots in a row.";
+    final atIndex = value.indexOf('@');
+    if (atIndex > 0 && value.substring(0, atIndex).endsWith('.')) {
+      return "Enter a valid email address.";
+    }
+    if (!RegExp(
+      r"^[A-Za-z0-9][A-Za-z0-9._%+\-]*@(?:[A-Za-z0-9](?:[A-Za-z0-9\-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}$",
+    ).hasMatch(value)) {
+      return "Enter a valid email address.";
+    }
+    final suggestion = _suggestEmailFix(value);
+    if (suggestion != null) return "Did you mean $suggestion?";
+    return null;
+  }
+
+  /// Common domain typos -> the domain people almost certainly meant.
+  static const Map<String, String> _domainTypos = {
+    'gmial.com': 'gmail.com', 'gmai.com': 'gmail.com', 'gmal.com': 'gmail.com', 'gamil.com': 'gmail.com',
+    'gmaill.com': 'gmail.com', 'gmail.co': 'gmail.com', 'gmail.cm': 'gmail.com', 'gmil.com': 'gmail.com',
+    'gnail.com': 'gmail.com', 'yaho.com': 'yahoo.com', 'yahho.com': 'yahoo.com', 'yahoo.co': 'yahoo.com',
+    'yahooo.com': 'yahoo.com', 'hotmial.com': 'hotmail.com', 'hotmal.com': 'hotmail.com',
+    'outlok.com': 'outlook.com', 'outloo.com': 'outlook.com', 'iclod.com': 'icloud.com', 'icoud.com': 'icloud.com',
+  };
+
+  /// Returns the corrected address if the domain looks like a typo of a
+  /// well-known provider (or ends in ".con"), otherwise null.
+  static String? _suggestEmailFix(String email) {
+    final at = email.lastIndexOf('@');
+    if (at < 1) return null;
+    final local = email.substring(0, at);
+    final domain = email.substring(at + 1).toLowerCase();
+    final fixed = _domainTypos[domain];
+    if (fixed != null) return '$local@$fixed';
+    if (domain.endsWith('.con')) return '$local@${domain.substring(0, domain.length - 1)}m';
     return null;
   }
 
   String? _vPhone(String? v) {
-    final digits = (v ?? '').replaceAll(RegExp(r'[\s\-\(\)\+]'), '');
+    final digits = (v ?? '').trim();
     if (digits.isEmpty) return "Enter a contact number.";
     if (!RegExp(r'^\d+$').hasMatch(digits)) return "Numbers only, please.";
-    if (digits.length < 10 || digits.length > 13) return "Enter a valid mobile number (e.g. 09171234567).";
+    final head = digits.length >= 2 ? digits.substring(0, 2) : digits;
+    if (!'09'.startsWith(head)) return "Mobile numbers start with 09.";
+    if (digits.length < _phoneLen) return "Enter all $_phoneLen digits (e.g. 09171234567).";
+    if (digits.length > _phoneLen) return "Mobile numbers are exactly $_phoneLen digits.";
     return null;
   }
 
@@ -413,7 +493,7 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
     );
   }
 
-  Widget _pickerField(BuildContext context, {required IconData icon, required String label, required String value, required VoidCallback onTap}) {
+  Widget _pickerField(BuildContext context, {required IconData icon, required String label, required String value, required VoidCallback onTap, bool error = false}) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -423,6 +503,10 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
           label: label,
           icon: icon,
           suffix: Icon(Icons.expand_more_rounded, size: 18, color: AppPalette.textMuted(context)),
+        ).copyWith(
+          // Empty errorText = red border only; the message sits under the row.
+          errorText: error ? '' : null,
+          errorStyle: const TextStyle(fontSize: 0, height: 0),
         ),
         child: Text(value, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: AppPalette.textPrimary(context))),
       ),
@@ -444,6 +528,7 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
         stream: BookingRepository.watchLockedDates(),
         builder: (context, lockedSnap) {
           final locked = lockedSnap.data ?? <DateTime>{};
+          _latestLocked = locked;
 
           // If the default date (today) is already taken and staff haven't
           // chosen one yet, quietly move to the first free day.
@@ -495,7 +580,8 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
                                   controller: _nameController,
                                   textCapitalization: TextCapitalization.words,
                                   textInputAction: TextInputAction.next,
-                                  inputFormatters: [LengthLimitingTextInputFormatter(60)],
+                                  maxLength: _nameMax,
+                                  maxLengthEnforcement: MaxLengthEnforcement.enforced,
                                   decoration: _decor(context, label: "Full name", icon: Icons.badge_outlined),
                                   validator: _vName,
                                 ),
@@ -505,7 +591,7 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
                                   focusNode: _emailFocus,
                                   keyboardType: TextInputType.emailAddress,
                                   textInputAction: TextInputAction.next,
-                                  inputFormatters: [FilteringTextInputFormatter.deny(RegExp(r'\s'))],
+                                  inputFormatters: [FilteringTextInputFormatter.deny(RegExp(r'\s')), LengthLimitingTextInputFormatter(254)],
                                   onChanged: (_) {
                                     if (_matchedUserId != null) setState(() => _matchedUserId = null);
                                     _lastLookedUpEmail = '';
@@ -537,8 +623,10 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
                                   controller: _contactController,
                                   keyboardType: TextInputType.phone,
                                   textInputAction: TextInputAction.next,
-                                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+\-\s()]')), LengthLimitingTextInputFormatter(20)],
-                                  decoration: _decor(context, label: "Contact number", icon: Icons.phone_outlined, hint: "09XX XXX XXXX"),
+                                  maxLength: _phoneLen,
+                                  maxLengthEnforcement: MaxLengthEnforcement.enforced,
+                                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                  decoration: _decor(context, label: "Contact number", icon: Icons.phone_outlined, hint: "09171234567"),
                                   validator: _vPhone,
                                 ),
                               ],
@@ -582,7 +670,7 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
                                   children: [
                                     Expanded(
                                       flex: 3,
-                                      child: _pickerField(context, icon: Icons.calendar_today_outlined, label: "Date", value: DateFormat('EEE, MMM d, yyyy').format(_date), onTap: () => _pickDate(locked)),
+                                      child: _pickerField(context, icon: Icons.calendar_today_outlined, label: "Date", value: DateFormat('EEE, MMM d, yyyy').format(_date), onTap: () => _pickDate(locked), error: dateTaken),
                                     ),
                                     const SizedBox(width: 12),
                                     Expanded(
@@ -598,7 +686,12 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
                                       children: [
                                         const Icon(Icons.block, size: 14, color: AppColors.accent),
                                         const SizedBox(width: 6),
-                                        Expanded(child: Text("This date is already booked — pick another.", style: TextStyle(fontSize: 11.5, color: AppPalette.textMuted(context)))),
+                                        const Expanded(
+                                          child: Text(
+                                            "This date is already booked — pick another so it doesn't double-book.",
+                                            style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: AppColors.accent),
+                                          ),
+                                        ),
                                       ],
                                     ),
                                   ),

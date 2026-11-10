@@ -2255,11 +2255,11 @@ class _BookingFilterBar extends StatelessWidget {
   });
 
   static const _statuses = [
-    ('all', 'All'),
-    ('pending_confirmation', 'Needs approval'),
-    ('confirmed', 'Confirmed'),
-    ('cancelled', 'Cancelled'),
-    ('completed', 'Completed'),
+    ('all', 'All', Icons.apps_rounded),
+    ('pending_confirmation', 'Needs approval', Icons.hourglass_top_rounded),
+    ('confirmed', 'Confirmed', Icons.check_circle_outline_rounded),
+    ('cancelled', 'Cancelled', Icons.cancel_outlined),
+    ('completed', 'Completed', Icons.task_alt_rounded),
   ];
 
   @override
@@ -2268,12 +2268,25 @@ class _BookingFilterBar extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 2, bottom: 10),
-          child: Text(
-            (counts['pending_confirmation'] ?? 0) == 0
-                ? "No bookings waiting for approval"
-                : "${counts['pending_confirmation']} waiting for your approval",
-            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppPalette.textSecondary(context)),
+          padding: const EdgeInsets.only(left: 2, bottom: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: (counts['pending_confirmation'] ?? 0) == 0 ? const Color(0xFF2E7D32) : const Color(0xFFB07A2A),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                (counts['pending_confirmation'] ?? 0) == 0
+                    ? "No bookings waiting for approval"
+                    : "${counts['pending_confirmation']} waiting for your approval",
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppPalette.textSecondary(context)),
+              ),
+            ],
           ),
         ),
         Row(
@@ -2299,8 +2312,16 @@ class _BookingFilterBar extends StatelessWidget {
                         ),
                   filled: true,
                   fillColor: AppPalette.surface(context),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: AppPalette.divider(context)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: AppColors.accent, width: 1.4),
+                  ),
                 ),
               ),
             ),
@@ -2312,8 +2333,8 @@ class _BookingFilterBar extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppPalette.textPrimary(context),
                   side: BorderSide(color: AppPalette.divider(context)),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
                 icon: Icon(sortNewestFirst ? Icons.arrow_downward : Icons.arrow_upward, size: 15),
                 label: const Text("Date", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
@@ -2323,29 +2344,71 @@ class _BookingFilterBar extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         SizedBox(
-          height: 32,
+          height: 38,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: _statuses.length,
             separatorBuilder: (_, __) => const SizedBox(width: 8),
             itemBuilder: (context, i) {
-              final (value, label) = _statuses[i];
+              final (value, label, icon) = _statuses[i];
               final selected = statusFilter == value;
               final count = counts[value] ?? 0;
-              return ChoiceChip(
-                label: Text(count == 0 ? label : '$label · $count'),
-                selected: selected,
-                onSelected: (_) => onStatusChanged(value),
-                labelStyle: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                  color: selected ? Colors.white : AppPalette.textPrimary(context),
+              final urgent = value == 'pending_confirmation' && count > 0;
+              final fg = selected ? Colors.white : AppPalette.textPrimary(context);
+              return Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(999),
+                  onTap: () => onStatusChanged(value),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(horizontal: 13),
+                    decoration: BoxDecoration(
+                      gradient: selected
+                          ? LinearGradient(
+                              colors: [AppColors.accent, Color.lerp(AppColors.accent, Colors.black, 0.22)!],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            )
+                          : null,
+                      color: selected ? null : AppPalette.cardBg(context),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: selected ? Colors.transparent : AppPalette.divider(context)),
+                      boxShadow: selected
+                          ? [BoxShadow(color: AppColors.accent.withValues(alpha: 0.25), blurRadius: 12, offset: const Offset(0, 4))]
+                          : null,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(icon, size: 15, color: fg),
+                        const SizedBox(width: 6),
+                        Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: fg)),
+                        if (count > 0) ...[
+                          const SizedBox(width: 7),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: selected
+                                  ? Colors.white.withValues(alpha: 0.22)
+                                  : (urgent ? const Color(0xFFB07A2A) : AppColors.accentTint(0.10)),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              '$count',
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w800,
+                                color: selected || urgent ? Colors.white : AppColors.accent,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
-                selectedColor: AppColors.accent,
-                backgroundColor: AppPalette.surface(context),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999), side: BorderSide.none),
-                showCheckmark: false,
-                padding: const EdgeInsets.symmetric(horizontal: 4),
               );
             },
           ),
@@ -2489,101 +2552,145 @@ class _BookingListState extends State<_BookingList> {
     final when = _whenLabel(b.date);
     const amber = Color(0xFFB07A2A);
     final muted = AppPalette.textMuted(context);
+    final statusColor = _bookingStatusColor(b.status);
+    final radius = BorderRadius.circular(20);
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: radius,
         onTap: () => widget.onTap(b),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
           decoration: BoxDecoration(
-            color: isSelected ? AppColors.accentTint(0.07) : AppPalette.cardBg(context),
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: isSelected ? null : AppShadows.soft,
+            color: isSelected ? AppColors.accentTint(0.06) : AppPalette.cardBg(context),
+            borderRadius: radius,
+            boxShadow: isSelected
+                ? [BoxShadow(color: AppColors.accent.withValues(alpha: 0.16), blurRadius: 18, offset: const Offset(0, 8))]
+                : AppShadows.soft,
             border: Border.all(
-              color: isSelected
-                  ? AppColors.accent
-                  : (needsAction ? amber.withValues(alpha: 0.5) : AppPalette.divider(context)),
-              width: isSelected ? 1.4 : 1,
+              color: isSelected ? AppColors.accent : AppPalette.divider(context),
+              width: isSelected ? 1.5 : 1,
             ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 20,
-                    backgroundColor: AppColors.accentTint(0.10),
-                    child: Text(name[0].toUpperCase(),
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.accent)),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: AppPalette.textPrimary(context))),
-                        const SizedBox(height: 2),
-                        Text(b.packageName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 12, color: AppPalette.textSecondary(context))),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _StatusChip(status: b.status),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  _infoPill(context, Icons.calendar_today_outlined, DateFormat('MMM d, yyyy').format(b.date)),
-                  _infoPill(context, Icons.schedule_rounded, b.time),
-                  if (when != null && !cancelled)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(color: when.$2.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
-                      child: Text(when.$1, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: when.$2)),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      needsAction ? "Tap to review and approve" : "#${b.bookingRef}",
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: needsAction ? FontWeight.w700 : FontWeight.w500,
-                        color: needsAction ? amber : muted,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(19),
+            child: Stack(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(19, 14, 14, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [AppColors.accent, Color.lerp(AppColors.accent, Colors.black, 0.25)!],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Text(name[0].toUpperCase(),
+                                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Colors.white)),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: AppPalette.textPrimary(context))),
+                                const SizedBox(height: 3),
+                                Text(b.packageName.toUpperCase(),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.4, color: AppPalette.textSecondary(context))),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _StatusChip(status: b.status),
+                        ],
                       ),
-                    ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          _infoPill(context, Icons.calendar_today_outlined, DateFormat('MMM d, yyyy').format(b.date)),
+                          _infoPill(context, Icons.schedule_rounded, b.time),
+                          if (when != null && !cancelled)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                              decoration: BoxDecoration(color: when.$2.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
+                              child: Text(when.$1, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: when.$2)),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Divider(height: 1, color: AppPalette.divider(context).withValues(alpha: 0.7)),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: needsAction
+                                ? Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                                      decoration: BoxDecoration(color: amber.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.touch_app_rounded, size: 13, color: amber),
+                                          SizedBox(width: 5),
+                                          Text("Tap to review and approve",
+                                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: amber)),
+                                        ],
+                                      ),
+                                    ),
+                                  )
+                                : Row(
+                                    children: [
+                                      Icon(Icons.tag_rounded, size: 13, color: muted),
+                                      const SizedBox(width: 3),
+                                      Flexible(
+                                        child: Text(
+                                          b.bookingRef,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, letterSpacing: 0.3, color: muted),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                          Text(
+                            '₱${NumberFormat('#,##0').format(b.totalPrice)}',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: cancelled ? muted : AppPalette.textPrimary(context),
+                              decoration: cancelled ? TextDecoration.lineThrough : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                  Text(
-                    '₱${NumberFormat('#,##0').format(b.totalPrice)}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: cancelled ? muted : AppPalette.textPrimary(context),
-                      decoration: cancelled ? TextDecoration.lineThrough : null,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+                ),
+                Positioned(left: 0, top: 0, bottom: 0, width: 5, child: ColoredBox(color: statusColor)),
+              ],
+            ),
           ),
         ),
       ),
@@ -2635,24 +2742,28 @@ class _BookingsEmpty extends StatelessWidget {
   }
 }
 
+/// One color per booking status — shared by the list card's side stripe and
+/// the status chip so they always match.
+Color _bookingStatusColor(String status) {
+  switch (status) {
+    case 'confirmed':
+      return const Color(0xFF2E7D32);
+    case 'completed':
+      return const Color(0xFF1565C0);
+    case 'cancelled':
+      return const Color(0xFFC62828);
+    case 'awaiting_receipt':
+      return const Color(0xFF6A4FB6);
+    default:
+      return const Color(0xFFB07A2A);
+  }
+}
+
 class _StatusChip extends StatelessWidget {
   final String status;
   const _StatusChip({required this.status});
 
-  Color _color() {
-    switch (status) {
-      case 'confirmed':
-        return const Color(0xFF2E7D32);
-      case 'completed':
-        return const Color(0xFF1565C0);
-      case 'cancelled':
-        return const Color(0xFFC62828);
-      case 'awaiting_receipt':
-        return const Color(0xFF6A4FB6);
-      default:
-        return const Color(0xFFB07A2A);
-    }
-  }
+  Color _color() => _bookingStatusColor(status);
 
   String _label() {
     switch (status) {
@@ -2992,8 +3103,9 @@ class _BookingDetailPaneState extends State<_BookingDetailPane> {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppPalette.cardBg(context),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppPalette.divider(context)),
+        boxShadow: AppShadows.soft,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3001,17 +3113,19 @@ class _BookingDetailPaneState extends State<_BookingDetailPane> {
           Row(
             children: [
               Container(
-                width: 28,
-                height: 28,
+                width: 32,
+                height: 32,
                 alignment: Alignment.center,
-                decoration: BoxDecoration(color: AppColors.accentTint(0.10), borderRadius: BorderRadius.circular(9)),
-                child: Icon(icon, size: 15, color: AppColors.accent),
+                decoration: BoxDecoration(color: AppColors.accentTint(0.10), borderRadius: BorderRadius.circular(10)),
+                child: Icon(icon, size: 16, color: AppColors.accent),
               ),
               const SizedBox(width: 10),
-              Text(title, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: AppPalette.textPrimary(context))),
+              Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppPalette.textPrimary(context))),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
+          Divider(height: 1, color: AppPalette.divider(context).withValues(alpha: 0.7)),
+          const SizedBox(height: 6),
           ...children,
         ],
       ),
@@ -3025,7 +3139,7 @@ class _BookingDetailPaneState extends State<_BookingDetailPane> {
     return Container(
       color: AppPalette.surface(context),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 100),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -3151,11 +3265,19 @@ class _BookingDetailPaneState extends State<_BookingDetailPane> {
               if (b.receiptUrl.isNotEmpty)
                 GestureDetector(
                   onTap: () => _openReceiptLightbox(b.receiptUrl),
-                  child: Stack(
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppPalette.surface(context),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppPalette.divider(context)),
+                    ),
+                    child: Stack(
                     alignment: Alignment.bottomRight,
                     children: [
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(12),
                         child: buildReceiptImage(
                           b.receiptUrl,
                           fit: BoxFit.contain,
@@ -3186,6 +3308,7 @@ class _BookingDetailPaneState extends State<_BookingDetailPane> {
                       ),
                     ],
                   ),
+                  ),
                 )
               else
                 Container(
@@ -3207,19 +3330,7 @@ class _BookingDetailPaneState extends State<_BookingDetailPane> {
                 ),
               ..._receiptScanInfo(context, b),
             ]),
-            _card(context, icon: Icons.fact_check_outlined, title: "Approval", children: [
-              Text("Only a staff member can approve or reject a booking request.", style: TextStyle(fontSize: 11.5, color: AppPalette.textMuted(context))),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(child: _statusButton(context, "Approve", "confirmed", filled: true)),
-                  const SizedBox(width: 10),
-                  Expanded(child: _statusButton(context, "Reject", "cancelled", onPressed: _confirmReject, danger: true)),
-                  const SizedBox(width: 10),
-                  Expanded(child: _statusButton(context, "Mark Completed", "completed")),
-                ],
-              ),
-            ]),
+            _buildDecisionCard(context, b),
           ],
         ),
       ),
@@ -3300,27 +3411,244 @@ class _BookingDetailPaneState extends State<_BookingDetailPane> {
     );
   }
 
-  Widget _statusButton(BuildContext context, String label, String status, {VoidCallback? onPressed, bool filled = false, bool danger = false}) {
-    final isCurrent = _current.status == status;
+  /// Approve / Reject / Mark Completed — state-aware: it tells staff what is
+  /// expected at this point of the booking, and an action that has already
+  /// happened shows as "done" instead of a dead grey button.
+  Widget _buildDecisionCard(BuildContext context, BookingRecord b) {
+    const green = Color(0xFF2E7D32);
+    const red = Color(0xFFC62828);
+    const blue = Color(0xFF1565C0);
+    final status = b.status;
     // A slot hold has no receipt to check yet, so there's nothing to accept
     // or mark done — it either turns into a real request or auto-rejects.
-    final blockedByHold = _current.isAwaitingReceipt && (status == 'confirmed' || status == 'completed');
-    final disabled = _updating || isCurrent || blockedByHold;
-    final color = danger ? const Color(0xFFC62828) : AppColors.accent;
-    final text = Text(isCurrent ? "$label (current)" : label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold));
-    final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(12));
-    final action = disabled ? null : (onPressed ?? () => _setStatus(status));
-    if (filled) {
-      return ElevatedButton(
-        onPressed: action,
-        style: ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white, elevation: 0, padding: const EdgeInsets.symmetric(vertical: 14), shape: shape),
-        child: text,
+    final holdBlocked = b.isAwaitingReceipt;
+
+    final (String, IconData, Color) info = switch (status) {
+      'pending_confirmation' => (
+          "Check the receipt above, then approve or reject this request.",
+          Icons.visibility_outlined,
+          const Color(0xFFB07A2A),
+        ),
+      'confirmed' => (
+          "Approved. Mark it completed once the session is done.",
+          Icons.check_circle_outline_rounded,
+          green,
+        ),
+      'completed' => ("This booking is completed.", Icons.task_alt_rounded, blue),
+      'cancelled' => ("This booking was rejected.", Icons.block_rounded, red),
+      _ => (
+          "Waiting for the customer's receipt — there's nothing to approve yet.",
+          Icons.hourglass_top_rounded,
+          const Color(0xFF6A4FB6),
+        ),
+    };
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 14),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: AppPalette.cardBg(context),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppPalette.divider(context)),
+        boxShadow: AppShadows.soft,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _updating
+              ? const LinearProgressIndicator(minHeight: 3, color: AppColors.accent)
+              : const SizedBox(height: 3),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 15, 18, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(color: AppColors.accentTint(0.10), borderRadius: BorderRadius.circular(10)),
+                      child: const Icon(Icons.fact_check_outlined, size: 16, color: AppColors.accent),
+                    ),
+                    const SizedBox(width: 10),
+                    Text("Approval",
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppPalette.textPrimary(context))),
+                    const Spacer(),
+                    _StatusChip(status: status),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                  decoration: BoxDecoration(
+                    color: info.$3.withValues(alpha: 0.09),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(info.$2, size: 17, color: info.$3),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(info.$1,
+                            style: TextStyle(fontSize: 12.5, height: 1.35, fontWeight: FontWeight.w600, color: AppPalette.textSecondary(context))),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: _DecisionButton(
+                        label: status == 'confirmed' ? "Approved" : "Approve",
+                        icon: Icons.check_rounded,
+                        color: green,
+                        kind: _DecisionKind.solid,
+                        done: status == 'confirmed',
+                        onPressed: (_updating || status == 'confirmed' || holdBlocked) ? null : () => _setStatus('confirmed'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: _DecisionButton(
+                        label: status == 'cancelled' ? "Rejected" : "Reject",
+                        icon: Icons.close_rounded,
+                        color: red,
+                        kind: _DecisionKind.tonal,
+                        done: status == 'cancelled',
+                        onPressed: (_updating || status == 'cancelled') ? null : _confirmReject,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                _DecisionButton(
+                  label: status == 'completed' ? "Completed" : "Mark Completed",
+                  icon: Icons.task_alt_rounded,
+                  color: blue,
+                  kind: _DecisionKind.outline,
+                  done: status == 'completed',
+                  onPressed: (_updating || status == 'completed' || holdBlocked) ? null : () => _setStatus('completed'),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(Icons.lock_outline_rounded, size: 12, color: AppPalette.textMuted(context)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text("Only a staff member can approve or reject a booking request.",
+                          style: TextStyle(fontSize: 11, color: AppPalette.textMuted(context))),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+enum _DecisionKind { solid, tonal, outline }
+
+/// Big, rounded action button used by the Approval card. [done] marks the
+/// action that has already been applied to the booking (shown as a calm
+/// tinted "done" state); a null [onPressed] otherwise means it's blocked.
+class _DecisionButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final _DecisionKind kind;
+  final bool done;
+  final VoidCallback? onPressed;
+
+  const _DecisionButton({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.kind,
+    required this.onPressed,
+    this.done = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onPressed != null;
+    final radius = BorderRadius.circular(14);
+
+    Color fg;
+    Color? bg;
+    Gradient? gradient;
+    Border? border;
+    List<BoxShadow>? shadow;
+    var shownIcon = icon;
+
+    if (done) {
+      fg = color;
+      bg = color.withValues(alpha: 0.10);
+      border = Border.all(color: color.withValues(alpha: 0.35));
+      shownIcon = Icons.check_circle_rounded;
+    } else if (!enabled) {
+      fg = AppPalette.textMuted(context).withValues(alpha: 0.75);
+      bg = AppPalette.surface(context);
+      border = Border.all(color: AppPalette.divider(context));
+    } else if (kind == _DecisionKind.solid) {
+      fg = Colors.white;
+      gradient = LinearGradient(
+        colors: [color, Color.lerp(color, Colors.black, 0.2)!],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
       );
+      shadow = [BoxShadow(color: color.withValues(alpha: 0.28), blurRadius: 14, offset: const Offset(0, 6))];
+    } else if (kind == _DecisionKind.tonal) {
+      fg = color;
+      bg = color.withValues(alpha: 0.10);
+      border = Border.all(color: color.withValues(alpha: 0.4));
+    } else {
+      fg = color;
+      bg = Colors.transparent;
+      border = Border.all(color: color, width: 1.3);
     }
-    return OutlinedButton(
-      onPressed: action,
-      style: OutlinedButton.styleFrom(foregroundColor: color, side: BorderSide(color: disabled ? AppPalette.divider(context) : color), padding: const EdgeInsets.symmetric(vertical: 14), shape: shape),
-      child: text,
+
+    return Container(
+      decoration: BoxDecoration(color: bg, gradient: gradient, borderRadius: radius, border: border, boxShadow: shadow),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: radius,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: radius,
+          child: Container(
+            height: 50,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(shownIcon, size: 19, color: fg),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: fg),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
