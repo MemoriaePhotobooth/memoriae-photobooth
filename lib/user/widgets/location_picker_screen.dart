@@ -17,7 +17,11 @@ const String _maptilerKey = String.fromEnvironment('MAPTILER_KEY');
 const String _locationIqKey = String.fromEnvironment('LOCATIONIQ_KEY');
 const String _userAgent = 'MemoriaePhotobooth/1.0';
 
-const LatLng _kDefaultCenter = LatLng(14.5995, 120.9842); // Manila
+// Laguna only. Approximate bounding box covering the province.
+final LatLngBounds _kLagunaBounds = LatLngBounds(LatLng(14.0, 120.9), LatLng(14.6, 121.7));
+const LatLng _kDefaultCenter = LatLng(14.2794, 121.4156); // Santa Cruz, Laguna
+
+bool _inLaguna(LatLng p) => _kLagunaBounds.contains(p);
 
 /// A location the customer pinned for their event.
 class PickedLocation {
@@ -97,6 +101,8 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
         'q': q,
         'format': 'json',
         'countrycodes': 'ph',
+        'viewbox': '120.9,14.6,121.7,14.0',
+        'bounded': '1',
         'limit': '1',
       });
       final res = await http
@@ -112,6 +118,10 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
         double.parse(hit['lat'] as String),
         double.parse(hit['lon'] as String),
       );
+      if (!_inLaguna(point)) {
+        _toast('That place is outside Laguna. Pick a location inside the province.');
+        return;
+      }
       _setPin(point, address: hit['display_name'] as String? ?? q, moveCamera: true);
     } catch (_) {
       _toast('Could not reach the search service. Try again or type the address.');
@@ -142,6 +152,10 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   }
 
   void _onMapTap(LatLng point) {
+    if (!_inLaguna(point)) {
+      _toast('Pins must be inside Laguna.');
+      return;
+    }
     final token = ++_tapToken;
     _setPin(point);
     _reverse(point).then((address) {
@@ -187,6 +201,8 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
               options: MapOptions(
                 initialCenter: _pin,
                 initialZoom: 14,
+                // Keeps the map view inside Laguna.
+                cameraConstraint: CameraConstraint.contain(bounds: _kLagunaBounds),
                 // Rotation is disabled so the map stays north-up and no compass is needed.
                 interactionOptions: const InteractionOptions(
                   flags: InteractiveFlag.all & ~InteractiveFlag.rotate,

@@ -198,7 +198,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       initialDate: _searchDate ?? now,
       firstDate: now,
-      lastDate: now.add(const Duration(days: 180)),
+      lastDate: DateTime(now.year, now.month + 2, now.day),
     );
     if (picked != null) setState(() => _searchDate = picked);
   }

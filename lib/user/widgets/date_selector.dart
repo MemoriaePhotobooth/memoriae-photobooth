@@ -41,16 +41,19 @@ class _DateSelectorState extends State<DateSelector> {
 
   bool _isSameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
 
-  bool _isBeforeToday(DateTime d) {
+  /// Bookable window: from today up to 2 months ahead. Past dates and anything
+  /// later than that are disabled.
+  bool _isOutOfRange(DateTime d) {
     final today = DateTime.now();
-    final todayStart = DateTime(today.year, today.month, today.day);
-    return d.isBefore(todayStart);
+    final start = DateTime(today.year, today.month, today.day);
+    final end = DateTime(today.year, today.month + 2, today.day);
+    return d.isBefore(start) || d.isAfter(end);
   }
 
   bool _isBooked(DateTime d) => widget.bookedDates.any((b) => _isSameDay(b, d));
 
   void _pickDate(DateTime d) {
-    if (_isBooked(d)) return;
+    if (_isBooked(d) || _isOutOfRange(d)) return;
     widget.onSelect(d);
     setState(() => _expanded = false);
   }
@@ -249,7 +252,7 @@ class _DateSelectorState extends State<DateSelector> {
 
               final isSelected = widget.selectedDate != null && _isSameDay(widget.selectedDate!, d);
               final isToday = _isSameDay(d, DateTime.now());
-              final isPast = _isBeforeToday(d);
+              final isPast = _isOutOfRange(d);
               final isBooked = _isBooked(d);
               final isDisabled = isPast || isBooked;
 
