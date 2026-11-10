@@ -8,6 +8,7 @@ import 'screens/staff_dashboard_screen.dart';
 import 'services/auth_service.dart';
 import 'services/staff_push_service.dart';
 import 'theme/app_palette.dart';
+import '../shared/cookie_consent.dart';
 
 /// Firebase-backed build — sign-in uses Firebase Authentication plus a
 /// `staff/{uid}` Firestore document, and the dashboard reads the live
@@ -30,6 +31,10 @@ class StaffApp extends StatelessWidget {
           navigatorKey: TopToast.navigatorKey,
           title: 'Memoriae Staff',
           debugShowCheckedModeBanner: false,
+      builder: (context, child) => CookieConsentGate(
+        accent: const Color(0xFF6E1B1E),
+        child: child ?? const SizedBox.shrink(),
+      ),
           themeMode: themeMode,
           theme: ThemeData(
             useMaterial3: true,

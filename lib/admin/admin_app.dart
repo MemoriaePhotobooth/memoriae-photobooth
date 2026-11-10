@@ -8,6 +8,7 @@ import 'screens/admin_dashboard_screen.dart';
 import 'services/admin_push_service.dart';
 import 'services/admin_service.dart';
 import 'theme/app_palette.dart';
+import '../shared/cookie_consent.dart';
 
 /// Firebase-backed build — AdminService checks against a real `admins/{uid}`
 /// Firestore collection, and BookingRepository reads/writes the same live
@@ -27,6 +28,10 @@ class AdminApp extends StatelessWidget {
           navigatorKey: TopToast.navigatorKey,
           title: 'Memoriae Admin',
           debugShowCheckedModeBanner: false,
+      builder: (context, child) => CookieConsentGate(
+        accent: const Color(0xFF6E1B1E),
+        child: child ?? const SizedBox.shrink(),
+      ),
           themeMode: themeMode,
           theme: ThemeData(
             useMaterial3: true,

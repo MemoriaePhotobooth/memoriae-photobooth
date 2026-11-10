@@ -18,6 +18,7 @@ import 'screens/user_entry_screen.dart';
 import 'screens/user_onboarding_screen.dart';
 import 'services/auth_service.dart';
 import 'services/push_notification_service.dart';
+import '../shared/cookie_consent.dart';
 
 /// Firebase-backed build — AuthService uses Firebase Authentication and
 /// BookingRepository reads/writes the live `bookings` Firestore collection
@@ -51,6 +52,10 @@ class UserApp extends StatelessWidget {
           title: 'Memoriae',
           navigatorKey: PushNotificationService.navigatorKey,
           debugShowCheckedModeBanner: false,
+      builder: (context, child) => CookieConsentGate(
+        accent: const Color(0xFF6E1B1E),
+        child: child ?? const SizedBox.shrink(),
+      ),
           themeMode: themeMode,
           theme: ThemeData(
             useMaterial3: true,
