@@ -38,6 +38,10 @@ class CookieConsent {
     }
   }
 
+  /// True only if the visitor accepted. Gate any analytics or third-party
+  /// tracker behind this, e.g. `if (await CookieConsent.hasAccepted()) { ... }`.
+  static Future<bool> hasAccepted() async => (await read()) == CookieChoice.accepted;
+
   /// Clears the saved choice so the notice shows again (handy for testing).
   static Future<void> reset() async {
     try {

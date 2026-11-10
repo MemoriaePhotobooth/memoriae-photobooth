@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import 'admin/admin_app.dart';
+import 'shared/cookie_consent.dart';
 import 'firebase_options.dart';
 import 'staff/staff_app.dart';
 import 'user/services/push_notification_service.dart';
@@ -42,6 +43,11 @@ class LauncherApp extends StatelessWidget {
     return MaterialApp(
       title: 'Memoriae',
       debugShowCheckedModeBanner: false,
+      // Cookie notice sits above every screen (Admin, Staff and User).
+      builder: (context, child) => CookieConsentGate(
+        accent: const Color(0xFF6E1B1E),
+        child: child ?? const SizedBox.shrink(),
+      ),
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF6E1B1E)),
