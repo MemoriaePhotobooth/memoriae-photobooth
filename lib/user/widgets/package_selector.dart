@@ -122,14 +122,27 @@ class _PackageSelectorState extends State<PackageSelector> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(packages.length, (i) {
             final active = i == _page;
-            return AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              width: active ? 20 : 6,
-              height: 6,
-              decoration: BoxDecoration(
-                color: active ? AppColors.accent : AppColors.accentTint(0.2),
-                borderRadius: BorderRadius.circular(999),
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                if (!_controller.hasClients) return;
+                // Jump to package `i` on the loop nearest the current page,
+                // so the swipe direction stays natural.
+                final current = (_controller.page ?? (_controller.initialPage).toDouble()).round();
+                final target = current - (current % n) + i;
+                _controller.animateToPage(target, duration: const Duration(milliseconds: 320), curve: Curves.easeOut);
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: active ? 20 : 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: active ? AppColors.accent : AppColors.accentTint(0.2),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
               ),
             );
           }),
