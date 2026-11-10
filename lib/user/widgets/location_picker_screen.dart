@@ -19,6 +19,9 @@ const String _userAgent = 'MemoriaePhotobooth/1.0';
 
 // Laguna only. Approximate bounding box covering the province.
 final LatLngBounds _kLagunaBounds = LatLngBounds(LatLng(14.0, 120.9), LatLng(14.6, 121.7));
+// The whole Philippines: the map can be panned here so customers see where
+// Laguna sits, but only pins inside Laguna are accepted.
+final LatLngBounds _kPhilippinesBounds = LatLngBounds(LatLng(4.5, 116.5), LatLng(21.5, 127.0));
 const LatLng _kDefaultCenter = LatLng(14.2794, 121.4156); // Santa Cruz, Laguna
 
 bool _inLaguna(LatLng p) => _kLagunaBounds.contains(p);
@@ -201,8 +204,8 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
               options: MapOptions(
                 initialCenter: _pin,
                 initialZoom: 14,
-                // Keeps the map view inside Laguna.
-                cameraConstraint: CameraConstraint.contain(bounds: _kLagunaBounds),
+                // Lets the view move across the Philippines; pins are still limited to Laguna.
+                cameraConstraint: CameraConstraint.contain(bounds: _kPhilippinesBounds),
                 // Rotation is disabled so the map stays north-up and no compass is needed.
                 interactionOptions: const InteractionOptions(
                   flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
