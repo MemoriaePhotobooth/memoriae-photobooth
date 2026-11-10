@@ -836,17 +836,30 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               for (var i = 0; i < items.length; i++)
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeOut,
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  width: i == active ? 18 : 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: i == active
-                        ? _accentText(context)
-                        : AppPalette.textMuted(context).withValues(alpha: 0.35),
-                    borderRadius: BorderRadius.circular(3),
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    if (!_carousel.hasClients) return;
+                    // Scroll the carousel so card `i` is in front; the scroll
+                    // listener keeps the active dot in sync afterwards.
+                    final target = (i * _cardStep).clamp(0.0, _carousel.position.maxScrollExtent).toDouble();
+                    setState(() => _carouselIndex = i);
+                    _carousel.animateTo(target, duration: const Duration(milliseconds: 320), curve: Curves.easeOut);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOut,
+                      width: i == active ? 18 : 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: i == active
+                            ? _accentText(context)
+                            : AppPalette.textMuted(context).withValues(alpha: 0.35),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
                   ),
                 ),
             ],
