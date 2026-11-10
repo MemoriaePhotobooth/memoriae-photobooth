@@ -36,4 +36,4 @@
 
 //flutter build apk --release --flavor user -t lib/main_user.dart --dart-define-from-file=env.json --split-per-abi
 
-//flutter run --dart-define=MAPTILER_KEY=gjNrLlHjQ3DvW6Yj34Vt --dart-define=LOCATIONIQ_KEY=pk.096bf0b2172de41136beb0b19b3cefd9
+//flutter run --dart-define=MAPTILER_KEY= --dart-define=LOCATIONIQ_KEY=
