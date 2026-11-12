@@ -30,6 +30,7 @@ import 'staff_pos_screen.dart';
 import 'staff_profile_screen.dart';
 import 'staff_settings_screen.dart';
 import 'staff_walkin_booking_screen.dart';
+import 'staff_loyalty_link_screen.dart';
 import '../widgets/floating_chat_bubble.dart';
 
 /// Records that a pending refund has been sent back to the customer,
@@ -722,6 +723,18 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
       onTap: () => setState(() => _section = _StaffSection.pos),
     );
 
+    final loyaltyTile = _QuickActionTile(
+      title: "Loyalty card",
+      subtitle: "Link a customer's card for their discount",
+      buttonLabel: "Link",
+      icon: Icons.card_membership,
+      background: AppColors.brandCream,
+      foreground: AppPalette.textPrimary(context),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const StaffLoyaltyLinkScreen()),
+      ),
+    );
+
     final tileRow = isDesktop
         ? IntrinsicHeight(
             child: Row(
@@ -803,6 +816,8 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
         greetingRow,
         const SizedBox(height: 16),
         tileRow,
+        const SizedBox(height: 12),
+        loyaltyTile,
         const SizedBox(height: 14),
         chartAndCalendarRow,
       ],
