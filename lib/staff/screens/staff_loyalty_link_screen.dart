@@ -3,6 +3,13 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
+
+const Color _kDanger = Color(0xFFDC2626);
+const Color _kDangerTint = Color(0xFFFDECEC);
+const Color _kSuccess = Color(0xFF16A34A);
+const Color _kSuccessTint = Color(0xFFE9F8EF);
 
 /// Staff screen to link a loyalty card to a customer.
 ///
@@ -30,6 +37,7 @@ class _StaffLoyaltyLinkScreenState extends State<StaffLoyaltyLinkScreen> {
   bool _waiting = false;
   String? _error;
   String? _statusMessage;
+  bool _statusIsSuccess = false;
   QueryDocumentSnapshot<Map<String, dynamic>>? _customer;
   DateTime? _expiresAt;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _sub;
@@ -143,6 +151,7 @@ class _StaffLoyaltyLinkScreenState extends State<StaffLoyaltyLinkScreen> {
       _expiresAt = null;
       _customer = null;
       _statusMessage = message;
+      _statusIsSuccess = true;
     });
     _emailCtrl.clear();
   }
@@ -157,6 +166,7 @@ class _StaffLoyaltyLinkScreenState extends State<StaffLoyaltyLinkScreen> {
         _waiting = false;
         _expiresAt = null;
         _statusMessage = message;
+        _statusIsSuccess = false;
       });
     }
     try {
@@ -170,10 +180,37 @@ class _StaffLoyaltyLinkScreenState extends State<StaffLoyaltyLinkScreen> {
     if (_expiresAt == null) return '';
     final left = _expiresAt!.difference(DateTime.now());
     final secs = left.inSeconds < 0 ? 0 : left.inSeconds;
-    final mm = (secs ~/ 60).toString();
+    final mm = (secs ~/ 60).toString().padLeft(2, '0');
     final ss = (secs % 60).toString().padLeft(2, '0');
     return '$mm:$ss';
   }
+
+  /// 1.0 at the start of the window, sliding down to 0.0 when it expires.
+  double _timeFraction() {
+    if (_expiresAt == null) return 0;
+    final f = _expiresAt!.difference(DateTime.now()).inMilliseconds /
+        _linkWindow.inMilliseconds;
+    if (f < 0) return 0;
+    if (f > 1) return 1;
+    return f;
+  }
+
+  static String _initials(String name, String email) {
+    final source = name.trim().isNotEmpty ? name.trim() : email.trim();
+    if (source.isEmpty) return '?';
+    final parts = source.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return parts[0][0].toUpperCase();
+  }
+
+  BoxDecoration _cardDecoration(BuildContext context) => BoxDecoration(
+        color: AppPalette.cardBg(context),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppPalette.divider(context)),
+        boxShadow: AppShadows.soft,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -182,79 +219,406 @@ class _StaffLoyaltyLinkScreenState extends State<StaffLoyaltyLinkScreen> {
     final email = (customer?.data()['email'] as String?) ?? '';
 
     return Scaffold(
+      backgroundColor: AppPalette.bg(context),
       appBar: AppBar(title: const Text('Link loyalty card')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: [
-          TextField(
-            controller: _emailCtrl,
-            keyboardType: TextInputType.emailAddress,
-            decoration: const InputDecoration(
-              labelText: 'Customer email',
-              hintText: 'name@example.com',
-              border: OutlineInputBorder(),
-            ),
-            enabled: !_waiting,
-            onSubmitted: (_) => _findCustomer(),
-          ),
+          _buildIntro(),
+          const SizedBox(height: 24),
+          const _SectionLabel(step: '1', text: 'Find customer'),
+          const SizedBox(height: 10),
+          _buildSearchField(context),
           const SizedBox(height: 12),
-          ElevatedButton(
-            onPressed: (_searching || _waiting) ? null : _findCustomer,
-            child: Text(_searching ? 'Searching...' : 'Find customer'),
-          ),
+          _buildFindButton(),
           if (_error != null) ...[
             const SizedBox(height: 12),
-            Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            _buildErrorBanner(_error!),
           ],
           if (customer != null && !_waiting) ...[
-            const SizedBox(height: 20),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
+            const SizedBox(height: 24),
+            const _SectionLabel(step: '2', text: 'Confirm and link'),
+            const SizedBox(height: 10),
+            _buildCustomerCard(context, name, email),
+          ],
+          if (_waiting) ...[
+            const SizedBox(height: 24),
+            const _SectionLabel(step: '2', text: 'Tap the card'),
+            const SizedBox(height: 10),
+            _buildWaitingCard(context, name),
+          ],
+          if (_statusMessage != null && !_waiting) ...[
+            const SizedBox(height: 24),
+            _buildStatusCard(context, _statusMessage!, _statusIsSuccess),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIntro() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.accent,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: AppShadows.accentGlow,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.card_membership_rounded, color: Colors.white, size: 28),
+          ),
+          const SizedBox(width: 16),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Loyalty card linking',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Find the customer by email, then have them tap their card on the reader.',
+                  style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.35),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchField(BuildContext context) {
+    OutlineInputBorder border(Color color, [double width = 1]) => OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: color, width: width),
+        );
+
+    return TextField(
+      controller: _emailCtrl,
+      enabled: !_waiting,
+      keyboardType: TextInputType.emailAddress,
+      textInputAction: TextInputAction.search,
+      onSubmitted: (_) => _findCustomer(),
+      style: TextStyle(color: AppPalette.textPrimary(context)),
+      decoration: InputDecoration(
+        labelText: 'Customer email',
+        hintText: 'name@example.com',
+        prefixIcon: const Icon(Icons.mail_outline_rounded),
+        filled: true,
+        fillColor: AppPalette.cardBg(context),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        border: border(AppPalette.divider(context)),
+        enabledBorder: border(AppPalette.divider(context)),
+        disabledBorder: border(AppPalette.divider(context)),
+        focusedBorder: border(AppColors.accent, 1.5),
+      ),
+    );
+  }
+
+  Widget _buildFindButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: FilledButton.icon(
+        style: FilledButton.styleFrom(
+          backgroundColor: AppColors.accent,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: AppColors.accent.withValues(alpha: 0.35),
+          disabledForegroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+        onPressed: (_searching || _waiting) ? null : _findCustomer,
+        icon: _searching
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              )
+            : const Icon(Icons.search_rounded),
+        label: Text(_searching ? 'Searching...' : 'Find customer'),
+      ),
+    );
+  }
+
+  Widget _buildErrorBanner(String message) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: _kDangerTint,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline_rounded, color: _kDanger, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(color: _kDanger, fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCustomerCard(BuildContext context, String name, String email) {
+    final displayName = name.isEmpty ? 'Customer' : name;
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: _cardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.accentTint(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  _initials(name, email),
+                  style: const TextStyle(
+                    color: AppColors.accent,
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(name.isEmpty ? 'Customer' : name,
-                        style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
-                    const SizedBox(height: 4),
-                    Text(email),
-                    const SizedBox(height: 16),
-                    FilledButton(
-                      onPressed: _startLink,
-                      child: const Text('Link card'),
+                    Text(
+                      displayName,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppPalette.textPrimary(context),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      email,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: AppPalette.textSecondary(context), fontSize: 13),
                     ),
                   ],
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.accent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+              onPressed: _startLink,
+              icon: const Icon(Icons.link_rounded),
+              label: const Text('Link card'),
             ),
-          ],
-          if (_waiting) ...[
-            const SizedBox(height: 20),
-            const Center(child: CircularProgressIndicator()),
-            const SizedBox(height: 16),
-            Text(
-              'Tap the card on the reader now.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Time left ${_timeLeft()}',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-            ),
-            const SizedBox(height: 16),
-            OutlinedButton(
-              onPressed: () => _cancelRequest(message: 'Cancelled.'),
-              child: const Text('Cancel'),
-            ),
-          ],
-          if (_statusMessage != null && !_waiting) ...[
-            const SizedBox(height: 20),
-            Text(_statusMessage!, style: const TextStyle(fontSize: 16)),
-          ],
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildWaitingCard(BuildContext context, String name) {
+    final fraction = _timeFraction();
+    final timeLeft = _timeLeft();
+    final muted = AppPalette.textSecondary(context);
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: _cardDecoration(context),
+      child: Column(
+        children: [
+          SizedBox(
+            width: 132,
+            height: 132,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 132,
+                  height: 132,
+                  child: CircularProgressIndicator(
+                    value: fraction,
+                    strokeWidth: 6,
+                    strokeCap: StrokeCap.round,
+                    color: AppColors.accent,
+                    backgroundColor: AppPalette.divider(context),
+                  ),
+                ),
+                Container(
+                  width: 84,
+                  height: 84,
+                  decoration: BoxDecoration(
+                    color: AppColors.accentTint(0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.contactless_rounded, color: AppColors.accent, size: 40),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Tap the card on the reader',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppPalette.textPrimary(context),
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              letterSpacing: -0.2,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            name.isEmpty ? 'Linking customer' : 'Linking $name',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: muted, fontSize: 14),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.accentTint(0.08),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              'Time left $timeLeft',
+              style: const TextStyle(
+                color: AppColors.accent,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: fraction,
+              minHeight: 6,
+              color: AppColors.accent,
+              backgroundColor: AppPalette.divider(context),
+            ),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.accent,
+                side: BorderSide(color: AppColors.accent.withValues(alpha: 0.4)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              onPressed: () => _cancelRequest(message: 'Cancelled.'),
+              icon: const Icon(Icons.close_rounded),
+              label: const Text('Cancel'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusCard(BuildContext context, String message, bool success) {
+    final bg = success ? _kSuccessTint : AppPalette.surface(context);
+    final fg = success ? _kSuccess : AppPalette.textSecondary(context);
+    final icon = success ? Icons.check_circle_rounded : Icons.info_outline_rounded;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: fg, size: 26),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: success ? const Color(0xFF14532D) : AppPalette.textPrimary(context),
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String step;
+  final String text;
+
+  const _SectionLabel({required this.step, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 22,
+          height: 22,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.accent,
+            shape: BoxShape.circle,
+          ),
+          child: Text(
+            step,
+            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          text.toUpperCase(),
+          style: TextStyle(
+            color: AppPalette.textMuted(context),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1.1,
+          ),
+        ),
+      ],
     );
   }
 }
