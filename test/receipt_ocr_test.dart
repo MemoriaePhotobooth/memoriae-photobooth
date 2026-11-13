@@ -79,4 +79,27 @@ Oct 10, 2026 3:45 PM
       expect(check('${base}Total Amount Sent ₱800.00').accepted, isTrue);
     });
   });
+
+  group('only GCash / bank transfer receipts are accepted', () {
+    bool ok(String text) => ReceiptOcr.parse(text).looksLikePayment;
+
+    test('accepts GCash and bank transfer receipts', () {
+      expect(ok('GCash\nTotal Amount Sent P500.00\nRef No. 7034 123 456789'), isTrue);
+      expect(ok('BDO\nFund Transfer Successful\nAmount PHP 500.00\nReference No. 123456789012'), isTrue);
+      expect(ok('InstaPay\nTransfer successful\nAmount 500.00\nTrace No. 000123'), isTrue);
+    });
+
+    test('rejects random photos and unrelated screenshots', () {
+      expect(ok(''), isFalse);
+      expect(ok('hello world'), isFalse);
+      expect(ok('Sunset at the beach 12.50 July 4'), isFalse);
+      expect(ok('Invoice\nAmount 500.00\nRef No. 7034 123 456789'), isFalse); // no GCash / bank
+    });
+
+    test('rejects a GCash or bank screen that is not a receipt (no amount / reference)', () {
+      expect(ok('GCash\nWelcome back'), isFalse);
+      expect(ok('BDO online banking login'), isFalse);
+      expect(ok('GCash\nTotal Amount Sent P500.00'), isFalse); // no ref no
+    });
+  });
 }

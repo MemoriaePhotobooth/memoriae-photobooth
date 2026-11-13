@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/booking_hours.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_palette.dart';
 
@@ -44,7 +45,11 @@ class TimeSelector extends StatefulWidget {
   final RangeValues range;
   final ValueChanged<RangeValues> onChanged;
 
-  const TimeSelector({super.key, required this.range, required this.onChanged});
+  /// The booking date. When it is today (Philippine time), start times that
+  /// have already passed are hidden so they can't be picked.
+  final DateTime? date;
+
+  const TimeSelector({super.key, required this.range, required this.onChanged, this.date});
 
   @override
   State<TimeSelector> createState() => _TimeSelectorState();
@@ -62,6 +67,15 @@ class _TimeSelectorState extends State<TimeSelector> {
       out.add(h);
     }
     return out;
+  }
+
+  /// Start times to offer: every half hour in business hours, minus the
+  /// ones that already passed when the date is today (Manila time).
+  List<double> _startOptions() {
+    final all = _hours(kEarliestHour, kLatestHour - kMinBookingHours);
+    final d = widget.date;
+    if (d == null) return all;
+    return all.where((h) => !BookingHours.isSlotInPast(d, h)).toList();
   }
 
   void _pickStart(double h) {
@@ -141,9 +155,18 @@ class _TimeSelectorState extends State<TimeSelector> {
                 children: [
                   _label(context, "START"),
                   const SizedBox(height: 8),
-                  _TimeStrip(
+                  if (_startOptions().isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Text(
+                        "No more times left today. Please pick another date.",
+                        style: TextStyle(fontSize: 12, color: AppPalette.textMuted(context)),
+                      ),
+                    )
+                  else
+                    _TimeStrip(
                     // Latest possible start leaves room for the minimum booking length.
-                    options: _hours(kEarliestHour, kLatestHour - kMinBookingHours),
+                    options: _startOptions(),
                     value: start,
                     onPick: _pickStart,
                   ),

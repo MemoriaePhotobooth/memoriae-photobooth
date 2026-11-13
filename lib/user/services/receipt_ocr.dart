@@ -18,8 +18,10 @@ class ReceiptOcrResult {
   /// Whether the text looks like a GCash receipt at all.
   final bool looksLikeGcash;
 
-  /// Whether the text looks like proof of a payment from *any* wallet or
-  /// bank (GCash, Maya, GoTyme, InstaPay, bank transfer, …).
+  /// Whether the text looks like a GCash or bank-transfer receipt: it names
+  /// GCash or a bank / transfer service AND shows an amount AND shows a
+  /// reference number. Anything else (random photos, other screenshots) is
+  /// not accepted.
   final bool looksLikePayment;
 
   /// Full recognised text, kept for debugging / future parsing.
@@ -79,31 +81,41 @@ class ReceiptOcr {
     }
   }
 
+  /// Names of banks, digital banks, and bank-transfer rails. Matched as
+  /// whole words so "pnb" can't hit inside some unrelated word. The plain
+  /// word "bank" is included so any other bank's receipt still counts.
+  static final RegExp _bankPattern = RegExp(
+    r'\b(?:bank|bdo|bpi|unionbank|union\s*bank|metrobank|landbank|security\s*bank|rcbc|chinabank|china\s*bank|'
+    r'pnb|eastwest|east\s*west|psbank|aub|cimb|maybank|ucpb|robinsons\s*bank|sterling|'
+    r'maya|gotyme|seabank|tonik|ofbank|netbank|komo|'
+    r'instapay|insta\s*pay|pesonet|peso\s*net|bank\s*transfer|fund\s*transfer|transfer\s*(?:successful|complete|completed)|'
+    r'successfully\s*transferred)\b',
+  );
+
+  /// Words that label a reference / transaction number on a receipt.
+  static final RegExp _refMarker = RegExp(
+    r'\b(?:ref(?:erence)?\.?|trace|confirmation|transaction)\s*(?:no\.?|number|id|code|#)',
+  );
+
   /// Pulls the useful fields out of raw OCR text. Public + pure so it can be
   /// unit-tested without a device.
   static ReceiptOcrResult parse(String text) {
     final flat = text.replaceAll('\r', '');
     final lower = flat.toLowerCase();
 
-    final looksLikeGcash = lower.contains('gcash') ||
-        (lower.contains('ref no') && lower.contains('amount')) ||
-        lower.contains('express send');
+    final looksLikeGcash = lower.contains('gcash') || lower.contains('express send');
 
     final amount = _findAmount(flat);
     final reference = _findReference(flat);
 
-    // Other wallets / banks are fine too — what matters is that it is proof
-    // of a transfer, not which app it came from.
-    const paymentWords = [
-      'gcash', 'maya', 'paymaya', 'gotyme', 'seabank', 'shopeepay', 'grabpay',
-      'instapay', 'pesonet', 'express send', 'bank transfer', 'fund transfer',
-      'transfer successful', 'transaction successful', 'payment successful',
-      'bdo', 'bpi', 'unionbank', 'metrobank', 'landbank', 'security bank',
-      'rcbc', 'chinabank', 'pnb', 'eastwest',
-    ];
-    final looksLikePayment = looksLikeGcash ||
-        paymentWords.any(lower.contains) ||
-        (reference != null && amount != null);
+    // Only GCash and bank-transfer receipts are accepted. A screenshot has
+    // to pass ALL three checks, so a random photo, a meme, or a screenshot
+    // that merely mentions "bank" somewhere is rejected:
+    //   1. it names GCash or a bank / transfer service (whole words only),
+    //   2. it shows an amount, and
+    //   3. it shows a reference / transaction number.
+    final namesGcashOrBank = looksLikeGcash || _bankPattern.hasMatch(lower);
+    final looksLikePayment = namesGcashOrBank && amount != null && (reference != null || _refMarker.hasMatch(lower));
 
     return ReceiptOcrResult(
       amount: amount,
@@ -132,7 +144,7 @@ class ReceiptOcr {
     final problems = <String>[];
 
     if (!ocr.looksLikePayment) {
-      problems.add("This doesn't look like a payment receipt. Upload the screenshot you got after sending the payment (GCash, Maya, or your bank app).");
+      problems.add("This doesn't look like a payment receipt. Upload the screenshot you got after sending the payment (GCash or your bank app).");
       return ReceiptVerdict(problems);
     }
 

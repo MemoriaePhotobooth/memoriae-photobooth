@@ -79,7 +79,31 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
 
   /// No network call — nothing is held until [_handleBookNow] runs, so
   /// changing dates while filling out the form is just local state.
-  void _onDateChanged(DateTime date) => setState(() => _selectedDate = date);
+  void _onDateChanged(DateTime date) => setState(() {
+        _selectedDate = date;
+        _moveToFutureTime();
+      });
+
+  /// Whether the picked date + start time has already passed (Manila time).
+  bool get _slotPassed {
+    final d = _selectedDate;
+    return d != null && BookingHours.isSlotInPast(d, _timeRange.start);
+  }
+
+  /// When the picked date is today and the chosen start time is already
+  /// over, jump to the earliest start that is still ahead (keeping the
+  /// same length). Leaves the time alone if nothing is left today — the
+  /// Book button then stays disabled.
+  void _moveToFutureTime() {
+    final d = _selectedDate;
+    if (d == null || !BookingHours.isSlotInPast(d, _timeRange.start)) return;
+    final start = BookingHours.earliestStart(d);
+    if (start == null) return;
+    final length = (_timeRange.end - _timeRange.start).clamp(kMinBookingHours, kMaxBookingHours).toDouble();
+    var end = start + length;
+    if (end > kLatestHour) end = kLatestHour;
+    _timeRange = RangeValues(start, end);
+  }
 
   void _showDateTakenSnack(String message) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
@@ -95,9 +119,11 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
   @override
   void initState() {
     super.initState();
-    final d = DateTime.now();
+    final d = ServerClock.phToday(); // Philippine date, not the phone's
     final fallbackDate = DateTime(d.year, d.month, d.day + 2);
-    _selectedDate = widget.intent?.date ?? fallbackDate;
+    final intentDate = widget.intent?.date;
+    _selectedDate = (intentDate != null && !intentDate.isBefore(d)) ? intentDate : fallbackDate;
+    _moveToFutureTime();
     _selectedPkg = widget.intent?.package ?? kPackages[1]; // "premium" matches the original default
     _guests = widget.intent?.guests;
     WidgetsBinding.instance.addObserver(this);
@@ -110,7 +136,9 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
   /// 12 AM–6 AM window has started or ended.
   void _refreshBookingOpen() {
     final open = BookingHours.isOpen();
-    if (mounted && open != _bookingOpen) setState(() => _bookingOpen = open);
+    // Always rebuild: besides the curfew, the "time already passed" check
+    // changes as the clock moves.
+    if (mounted) setState(() => _bookingOpen = open);
   }
 
   /// Timers can be paused while the app is backgrounded, so re-check the
@@ -159,6 +187,7 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
       _bookingOpen &&
       !_submitting &&
       _selectedDate != null &&
+      !_slotPassed &&
       _selectedPkg != null &&
       _location != null &&
       (_timeRange.end - _timeRange.start) <= kMaxBookingHours + 0.001; // max 2 hours
@@ -169,6 +198,7 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
   String get _nextStepLabel {
     if (!_bookingOpen) return "Booking closed · opens 6:00 AM";
     if (_selectedDate == null) return "Pick a date to continue";
+    if (_slotPassed) return "That time has already passed · pick a later time";
     if (_location == null) return "Pin your event location to continue";
     if (_selectedPkg == null) return "Choose a package to continue";
     return "Ready — hold your slot and send payment next";
@@ -179,6 +209,7 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
   String get _ctaLabel {
     if (!_bookingOpen) return "Booking closed";
     if (_selectedDate == null) return "Pick a date";
+    if (_slotPassed) return "Pick a later time";
     if (_location == null) return "Pin location";
     if (_selectedPkg == null) return "Choose a package";
     return "Book & hold slot";
@@ -207,6 +238,11 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
     if (!BookingHours.isOpen()) {
       setState(() => _bookingOpen = false);
       _showDateTakenSnack(BookingHours.closedMessage);
+      return;
+    }
+    if (_slotPassed) {
+      _showDateTakenSnack(BookingHours.slotPassedMessage);
+      setState(() {});
       return;
     }
     if (!_canSubmit) return;
@@ -241,6 +277,10 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
         _submitting = false;
         _bookingOpen = false;
       });
+      _showDateTakenSnack(e.message);
+    } on SlotInPastException catch (e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
       _showDateTakenSnack(e.message);
     } on DateUnavailableException catch (e) {
       if (!mounted) return;
@@ -435,6 +475,7 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
                             context,
                             TimeSelector(
                               range: _timeRange,
+                              date: _selectedDate,
                               onChanged: (r) => setState(() => _timeRange = r),
                             ),
                           ),

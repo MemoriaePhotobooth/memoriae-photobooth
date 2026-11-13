@@ -25,6 +25,23 @@ class ServerClock {
   /// Current time, corrected by the last successful [sync].
   static DateTime now() => DateTime.now().add(_offset);
 
+  /// Philippine Standard Time is always UTC+8 (no daylight saving).
+  static const Duration _phOffset = Duration(hours: 8);
+
+  /// The current Philippine time (UTC+8), whatever time zone the phone is
+  /// set to. Only read the wall-clock fields (`year`, `month`, `day`,
+  /// `hour`, `minute`) from the result — it is flagged as UTC purely so
+  /// those fields come out as Manila time. Don't mix it with local
+  /// `DateTime`s in comparisons.
+  static DateTime phNow() => now().toUtc().add(_phOffset);
+
+  /// Today's date in the Philippines at midnight, as a plain local
+  /// `DateTime(y, m, d)` so it compares cleanly with calendar dates.
+  static DateTime phToday() {
+    final n = phNow();
+    return DateTime(n.year, n.month, n.day);
+  }
+
   /// Re-measures the offset (at most once per 10 minutes unless [force]).
   /// Never throws.
   static Future<void> sync({bool force = false}) {

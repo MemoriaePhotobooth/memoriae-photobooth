@@ -191,10 +191,10 @@ class _ReceiptUploadModalState extends State<ReceiptUploadModal> with WidgetsBin
     widget.onExpired();
   }
 
-  /// The attached screenshot is NOT a payment receipt at all (checked by
-  /// on-device OCR the moment it is attached). GCash, Maya, GoTyme, bank
-  /// transfers, InstaPay and other wallets all count; a random photo or
-  /// screenshot doesn't, and can't be submitted.
+  /// The attached screenshot is NOT a GCash / bank-transfer receipt (checked
+  /// by on-device OCR the moment it is attached). Only GCash and bank
+  /// transfer receipts count; a random photo or any other screenshot
+  /// doesn't, and the booking button stays disabled.
   bool get _notReceipt {
     final ocr = _receipt?.ocr;
     return ocr != null && !ocr.looksLikePayment;
@@ -553,16 +553,16 @@ class _ReceiptUploadModalState extends State<ReceiptUploadModal> with WidgetsBin
     if (_notReceipt) {
       return _buildRejectedCard(
         context,
-        title: "This doesn't look like a payment receipt",
-        body: "You can't book with this screenshot. Upload the receipt you got after sending the payment — "
-            "GCash, Maya, or your bank app all work (it should show the amount and the reference no.).",
+        title: "This isn't a GCash or bank transfer receipt",
+        body: "You can't book with this image. Upload the receipt you got after sending the payment — "
+            "only a GCash or bank transfer receipt works (it should show the amount and the reference no.).",
       );
     }
     if (_unreadable) {
       return _buildRejectedCard(
         context,
         title: "We couldn't read this screenshot",
-        body: "We need to confirm it's a payment receipt before you can book. Upload a clearer, full screenshot of the receipt.",
+        body: "We need to confirm it's a GCash or bank transfer receipt before you can book. Upload a clearer, full screenshot of the receipt.",
       );
     }
     final ocr = _receipt?.ocr;
@@ -746,7 +746,7 @@ class _ReceiptUploadModalState extends State<ReceiptUploadModal> with WidgetsBin
                           )
                         : Text(
                             _notReceipt || _unreadable
-                                ? "Upload a valid payment receipt to continue"
+                                ? "Upload a GCash / bank transfer receipt to continue"
                                 : _receipt != null
                                     ? "Confirm & Submit Booking"
                                     : "Upload a receipt to continue",

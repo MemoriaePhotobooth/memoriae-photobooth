@@ -317,6 +317,35 @@ service cloud.firestore {
         || (changed.hasOnly(['invoiceNo']) && !('invoiceNo' in resource.data));
     }
 
+    // ---- Loyalty (RFID cards, 10% discount) ----
+    // Card links are written ONLY by Cloud Functions (Admin SDK,
+    // which bypasses these rules). Clients may read what they need, never write.
+
+    // Hashed RFID UID -> customer. Staff may look up links; nobody writes from the client.
+    match /loyaltyCards/{cardHash} {
+      allow read: if request.auth != null && (isStaff() || isAdmin());
+      allow write: if false;
+    }
+
+    // Customers who have a linked loyalty card get the discount. Written only by Cloud Functions.
+    match /loyaltyMembers/{userId} {
+      allow read: if request.auth != null && (request.auth.uid == userId || isStaff() || isAdmin());
+      allow write: if false;
+    }
+
+    // Short-lived "link the next tapped card to this customer" request, one per staff member.
+    // Staff may create, update, or delete only their own request, and only with the expected fields.
+    match /loyaltyLinkRequests/{staffUid} {
+      allow read, delete: if request.auth != null && request.auth.uid == staffUid;
+      allow create, update: if request.auth != null
+                            && request.auth.uid == staffUid
+                            && (isStaff() || isAdmin())
+                            && request.resource.data.keys().hasOnly(['userId', 'createdAt', 'expiresAt'])
+                            && request.resource.data.createdAt == request.time
+                            && request.resource.data.userId is string
+                            && request.resource.data.userId.size() > 0;
+    }
+
     function isStaff() {
       return request.auth != null &&
         exists(/databases/$(database)/documents/staff/$(request.auth.uid));

@@ -122,7 +122,7 @@ class _ReceiptUploadState extends State<ReceiptUpload> {
                   Text(_scanning ? "Reading your receipt…" : "Tap to upload screenshot",
                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppPalette.textPrimary(context))),
                   const SizedBox(height: 4),
-                  Text(_scanning ? "Checking the amount and reference no." : "GCash, Maya or bank receipt · PNG, JPG up to 10MB",
+                  Text(_scanning ? "Checking the amount and reference no." : "GCash or bank transfer receipt only · PNG, JPG",
                       style: TextStyle(fontSize: 12, color: AppPalette.textMuted(context))),
                 ],
               ),

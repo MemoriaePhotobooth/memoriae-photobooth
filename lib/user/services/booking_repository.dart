@@ -8,6 +8,7 @@ import '../models/booth_package.dart';
 import 'booking_hours.dart';
 import 'local_db.dart';
 import 'offline_cache.dart';
+import '../widgets/time_selector.dart' show kLatestHour;
 import 'server_clock.dart';
 
 /// Thrown when the date the customer picked is no longer available —
@@ -89,6 +90,16 @@ class BookingRepository {
     final d = int.tryParse(parts[2]);
     if (y == null || m == null || d == null) return null;
     return DateTime(y, m, d);
+  }
+
+  /// Throws [SlotInPastException] when [date] + the start of [time]
+  /// ("10:00 AM – 12:00 PM") has already begun in Philippine time.
+  static void _assertNotInPast(DateTime date, String time) {
+    final start = BookingHours.startHourOf(time);
+    // An unreadable label can't be judged by hour; still refuse past dates.
+    if (BookingHours.isSlotInPast(date, start ?? kLatestHour)) {
+      throw const SlotInPastException();
+    }
   }
 
   /// Statuses that mean "this date is spoken for". A `cancelled` lock
@@ -197,8 +208,13 @@ class BookingRepository {
     // Use Firebase's clock, not the phone's, for the curfew and the hold.
     await ServerClock.sync();
 
-    // Booking curfew: no new bookings from 12:00 AM to 6:00 AM.
+    // Booking curfew: no new bookings from 12:00 AM to 6:00 AM (Manila time).
     if (!BookingHours.isOpen()) throw const BookingClosedException();
+
+    // No booking in the past: the chosen start time must still be ahead of
+    // us in Philippine time (this is the authoritative check — the UI only
+    // mirrors it).
+    _assertNotInPast(date, time);
 
     final bookingRef = _col.doc(); // client-generated id, no network call yet
     final lockRef = _locksCol.doc(_dateKey(date));
@@ -266,6 +282,9 @@ class BookingRepository {
     double? locationLat,
     double? locationLng,
   }) async {
+    await ServerClock.sync();
+    _assertNotInPast(date, time);
+
     final bookingRef = _col.doc(bookingId);
     final newDateKey = _dateKey(date);
 

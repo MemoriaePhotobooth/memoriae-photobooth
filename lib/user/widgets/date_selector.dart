@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../services/booking_hours.dart';
+import '../services/server_clock.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_palette.dart';
 
@@ -35,7 +37,7 @@ class _DateSelectorState extends State<DateSelector> {
   @override
   void initState() {
     super.initState();
-    final base = widget.selectedDate ?? DateTime.now();
+    final base = widget.selectedDate ?? ServerClock.phToday();
     _displayedMonth = DateTime(base.year, base.month);
   }
 
@@ -43,11 +45,14 @@ class _DateSelectorState extends State<DateSelector> {
 
   /// Bookable window: from today up to 2 months ahead. Past dates and anything
   /// later than that are disabled.
+  /// "Today" is Philippine time. Today itself is also closed off once its
+  /// last possible start time has passed.
   bool _isOutOfRange(DateTime d) {
-    final today = DateTime.now();
-    final start = DateTime(today.year, today.month, today.day);
-    final end = DateTime(today.year, today.month + 2, today.day);
-    return d.isBefore(start) || d.isAfter(end);
+    final start = ServerClock.phToday();
+    final end = DateTime(start.year, start.month + 2, start.day);
+    if (d.isBefore(start) || d.isAfter(end)) return true;
+    if (_isSameDay(d, start) && !BookingHours.dateHasFutureSlot(d)) return true;
+    return false;
   }
 
   bool _isBooked(DateTime d) => widget.bookedDates.any((b) => _isSameDay(b, d));
@@ -64,7 +69,7 @@ class _DateSelectorState extends State<DateSelector> {
 
   @override
   Widget build(BuildContext context) {
-    final today = DateTime.now();
+    final today = ServerClock.phToday();
     final compactDays = List.generate(14, (i) => DateTime(today.year, today.month, today.day + i));
 
     return Column(
@@ -85,7 +90,7 @@ class _DateSelectorState extends State<DateSelector> {
                 setState(() {
                   _expanded = !_expanded;
                   if (_expanded) {
-                    final base = widget.selectedDate ?? DateTime.now();
+                    final base = widget.selectedDate ?? ServerClock.phToday();
                     _displayedMonth = DateTime(base.year, base.month);
                   }
                 });
@@ -136,7 +141,8 @@ class _DateSelectorState extends State<DateSelector> {
         itemBuilder: (context, i) {
           final d = days[i];
           final isSelected = widget.selectedDate != null && _isSameDay(widget.selectedDate!, d);
-          final isBooked = _isBooked(d);
+          // Booked by someone else, or already over (today after its last slot).
+          final isBooked = _isBooked(d) || _isOutOfRange(d);
           return GestureDetector(
             onTap: isBooked ? null : () => _pickDate(d),
             child: Opacity(
@@ -251,7 +257,7 @@ class _DateSelectorState extends State<DateSelector> {
               if (d == null) return const SizedBox.shrink();
 
               final isSelected = widget.selectedDate != null && _isSameDay(widget.selectedDate!, d);
-              final isToday = _isSameDay(d, DateTime.now());
+              final isToday = _isSameDay(d, ServerClock.phToday());
               final isPast = _isOutOfRange(d);
               final isBooked = _isBooked(d);
               final isDisabled = isPast || isBooked;

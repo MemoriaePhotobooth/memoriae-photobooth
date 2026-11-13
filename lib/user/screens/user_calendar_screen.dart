@@ -5,6 +5,7 @@ import '../services/booking_repository.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_palette.dart';
 import '../widgets/stream_once.dart';
+import '../services/server_clock.dart';
 
 /// Read-only month calendar so a customer can see, before ever opening
 /// checkout, which dates already have someone else's booking and which
@@ -28,24 +29,24 @@ class _UserCalendarScreenState extends State<UserCalendarScreen> {
   @override
   void initState() {
     super.initState();
-    final now = DateTime.now();
+    final now = ServerClock.phToday();
     _displayedMonth = DateTime(now.year, now.month);
   }
 
   bool _isSameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
 
   bool _isBeforeToday(DateTime d) {
-    final today = DateTime.now();
+    final today = ServerClock.phToday();
     return d.isBefore(DateTime(today.year, today.month, today.day));
   }
 
   bool get _isCurrentMonth {
-    final now = DateTime.now();
+    final now = ServerClock.phToday();
     return _displayedMonth.year == now.year && _displayedMonth.month == now.month;
   }
 
   void _goToToday() {
-    final now = DateTime.now();
+    final now = ServerClock.phToday();
     setState(() {
       _displayedMonth = DateTime(now.year, now.month);
       _selectedDay = DateTime(now.year, now.month, now.day);
@@ -99,7 +100,7 @@ class _UserCalendarScreenState extends State<UserCalendarScreen> {
                       ],
                     ),
                   ),
-                  if (!_isCurrentMonth || selected == null || !_isSameDay(selected, DateTime.now()))
+                  if (!_isCurrentMonth || selected == null || !_isSameDay(selected, ServerClock.phToday()))
                     TextButton.icon(
                       onPressed: _goToToday,
                       style: TextButton.styleFrom(
@@ -259,7 +260,7 @@ class _UserCalendarScreenState extends State<UserCalendarScreen> {
 
   Widget _buildDayCell(BuildContext context, DateTime d, Set<DateTime> bookedDates) {
     final isSelected = _selectedDay != null && _isSameDay(_selectedDay!, d);
-    final isToday = _isSameDay(d, DateTime.now());
+    final isToday = _isSameDay(d, ServerClock.phToday());
     final isPast = _isBeforeToday(d);
     final isBooked = bookedDates.any((b) => _isSameDay(b, d));
 
