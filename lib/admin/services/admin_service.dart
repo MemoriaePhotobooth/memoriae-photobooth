@@ -118,8 +118,14 @@ class AdminService {
   /// the card can rebuild freely without re-reading Firestore.
   Future<String> currentRoleLabel() => _roleLabelFuture ??= getProfile().then((p) => p.role).catchError((_) => 'Admin');
 
+  // Display name for the sidebar, cached like the role label so it isn't re-read on every rebuild.
+  Future<String>? _displayNameFuture;
+  Future<String> currentDisplayName() =>
+      _displayNameFuture ??= getProfile().then((p) => p.name).catchError((_) => 'Admin');
+
   Future<void> signOutAdmin() async {
     _roleLabelFuture = null;
+    _displayNameFuture = null;
     await _auth.signOut();
   }
 

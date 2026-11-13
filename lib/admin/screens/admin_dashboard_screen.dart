@@ -3808,7 +3808,15 @@ class _AdminProfileCard extends StatelessWidget {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Text(email.isEmpty ? 'Admin' : email, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
+                                      FutureBuilder<String>(
+                                        future: AdminService.instance.currentDisplayName(),
+                                        builder: (context, nameSnap) => Text(
+                                          nameSnap.data ?? 'Admin',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
+                                        ),
+                                      ),
                                       FutureBuilder<String>(
                                         future: AdminService.instance.currentRoleLabel(),
                                         builder: (context, snap) => Text(
