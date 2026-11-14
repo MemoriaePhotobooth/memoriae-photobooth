@@ -325,12 +325,18 @@ service cloud.firestore {
     match /loyaltyCards/{cardHash} {
       allow read: if request.auth != null && (isStaff() || isAdmin());
       allow write: if false;
+      // Admins can only flip the active flag (deactivate or reactivate). Nothing else.
+      allow update: if request.auth != null && isAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active'])
+                    && request.resource.data.active is bool;
     }
 
     // Customers who have a linked loyalty card get the discount. Written only by Cloud Functions.
     match /loyaltyMembers/{userId} {
       allow read: if request.auth != null && (request.auth.uid == userId || isStaff() || isAdmin());
       allow write: if false;
+      // Admins remove the discount when they deactivate a card.
+      allow delete: if request.auth != null && isAdmin();
     }
 
     // Short-lived "link the next tapped card to this customer" request, one per staff member.
