@@ -592,7 +592,7 @@ class _SectionLabel extends StatelessWidget {
   const _SectionLabel({required this.step, required this.text});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) {  
     return Row(
       children: [
         Container(
