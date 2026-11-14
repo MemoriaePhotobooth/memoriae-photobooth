@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/booth_package.dart';
@@ -46,6 +47,10 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
   late DateTime? _selectedDate;
   RangeValues _timeRange = const RangeValues(10, 12); // 10:00 AM – 12:00 PM (2-hour package)
   late BoothPackage? _selectedPkg;
+  // Loyalty discount: set only when the customer has a linked card (loyaltyMembers doc).
+  int? _loyaltyPct;
+  bool _applyLoyalty = true;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _loyaltySub;
   final Set<String> _selectedAddOnIds = {};
   late int? _guests;
   PickedLocation? _location;
@@ -79,31 +84,7 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
 
   /// No network call — nothing is held until [_handleBookNow] runs, so
   /// changing dates while filling out the form is just local state.
-  void _onDateChanged(DateTime date) => setState(() {
-        _selectedDate = date;
-        _moveToFutureTime();
-      });
-
-  /// Whether the picked date + start time has already passed (Manila time).
-  bool get _slotPassed {
-    final d = _selectedDate;
-    return d != null && BookingHours.isSlotInPast(d, _timeRange.start);
-  }
-
-  /// When the picked date is today and the chosen start time is already
-  /// over, jump to the earliest start that is still ahead (keeping the
-  /// same length). Leaves the time alone if nothing is left today — the
-  /// Book button then stays disabled.
-  void _moveToFutureTime() {
-    final d = _selectedDate;
-    if (d == null || !BookingHours.isSlotInPast(d, _timeRange.start)) return;
-    final start = BookingHours.earliestStart(d);
-    if (start == null) return;
-    final length = (_timeRange.end - _timeRange.start).clamp(kMinBookingHours, kMaxBookingHours).toDouble();
-    var end = start + length;
-    if (end > kLatestHour) end = kLatestHour;
-    _timeRange = RangeValues(start, end);
-  }
+  void _onDateChanged(DateTime date) => setState(() => _selectedDate = date);
 
   void _showDateTakenSnack(String message) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
@@ -119,14 +100,23 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
   @override
   void initState() {
     super.initState();
-    final d = ServerClock.phToday(); // Philippine date, not the phone's
+    final d = DateTime.now();
     final fallbackDate = DateTime(d.year, d.month, d.day + 2);
-    final intentDate = widget.intent?.date;
-    _selectedDate = (intentDate != null && !intentDate.isBefore(d)) ? intentDate : fallbackDate;
-    _moveToFutureTime();
+    _selectedDate = widget.intent?.date ?? fallbackDate;
     _selectedPkg = widget.intent?.package ?? kPackages[1]; // "premium" matches the original default
     _guests = widget.intent?.guests;
     WidgetsBinding.instance.addObserver(this);
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      _loyaltySub = FirebaseFirestore.instance
+          .collection('loyaltyMembers')
+          .doc(uid)
+          .snapshots()
+          .listen((snap) {
+        final pct = snap.data()?['discountPercent'];
+        if (mounted) setState(() => _loyaltyPct = pct is num && pct > 0 ? pct.toInt() : null);
+      }, onError: (_) {});
+    }
     _hoursTimer = Timer.periodic(const Duration(seconds: 20), (_) => _refreshBookingOpen());
     // Measure Firebase's clock once up front, then re-check the curfew.
     unawaited(ServerClock.sync().then((_) => _refreshBookingOpen()));
@@ -136,9 +126,7 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
   /// 12 AM–6 AM window has started or ended.
   void _refreshBookingOpen() {
     final open = BookingHours.isOpen();
-    // Always rebuild: besides the curfew, the "time already passed" check
-    // changes as the clock moves.
-    if (mounted) setState(() => _bookingOpen = open);
+    if (mounted && open != _bookingOpen) setState(() => _bookingOpen = open);
   }
 
   /// Timers can be paused while the app is backgrounded, so re-check the
@@ -150,6 +138,7 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
 
   @override
   void dispose() {
+    _loyaltySub?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _hoursTimer?.cancel();
     // Safety net only: normally the receipt modal itself owns the hold
@@ -171,7 +160,9 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
 
   int get _addOnsTotal => _selectedAddOns.fold(0, (sum, a) => sum + a.price);
 
-  int get _grandTotal => (_selectedPkg?.price ?? 0) + _addOnsTotal;
+  int get _discountPct => (_loyaltyPct != null && _applyLoyalty) ? _loyaltyPct! : 0;
+  int get _packageDiscount => (((_selectedPkg?.price ?? 0) * _discountPct) / 100).round();
+  int get _grandTotal => ((_selectedPkg?.price ?? 0) - _packageDiscount) + _addOnsTotal;
 
   void _toggleAddOn(BoothAddOn addOn) {
     setState(() {
@@ -187,7 +178,6 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
       _bookingOpen &&
       !_submitting &&
       _selectedDate != null &&
-      !_slotPassed &&
       _selectedPkg != null &&
       _location != null &&
       (_timeRange.end - _timeRange.start) <= kMaxBookingHours + 0.001; // max 2 hours
@@ -198,7 +188,6 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
   String get _nextStepLabel {
     if (!_bookingOpen) return "Booking closed · opens 6:00 AM";
     if (_selectedDate == null) return "Pick a date to continue";
-    if (_slotPassed) return "That time has already passed · pick a later time";
     if (_location == null) return "Pin your event location to continue";
     if (_selectedPkg == null) return "Choose a package to continue";
     return "Ready — hold your slot and send payment next";
@@ -209,7 +198,6 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
   String get _ctaLabel {
     if (!_bookingOpen) return "Booking closed";
     if (_selectedDate == null) return "Pick a date";
-    if (_slotPassed) return "Pick a later time";
     if (_location == null) return "Pin location";
     if (_selectedPkg == null) return "Choose a package";
     return "Book & hold slot";
@@ -240,11 +228,6 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
       _showDateTakenSnack(BookingHours.closedMessage);
       return;
     }
-    if (_slotPassed) {
-      _showDateTakenSnack(BookingHours.slotPassedMessage);
-      setState(() {});
-      return;
-    }
     if (!_canSubmit) return;
     setState(() => _submitting = true);
     try {
@@ -262,6 +245,7 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
         location: _location!.address,
         locationLat: _location!.lat,
         locationLng: _location!.lng,
+        discountPercent: _discountPct,
       );
       if (!mounted) return;
       setState(() {
@@ -277,10 +261,6 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
         _submitting = false;
         _bookingOpen = false;
       });
-      _showDateTakenSnack(e.message);
-    } on SlotInPastException catch (e) {
-      if (!mounted) return;
-      setState(() => _submitting = false);
       _showDateTakenSnack(e.message);
     } on DateUnavailableException catch (e) {
       if (!mounted) return;
@@ -475,7 +455,6 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
                             context,
                             TimeSelector(
                               range: _timeRange,
-                              date: _selectedDate,
                               onChanged: (r) => setState(() => _timeRange = r),
                             ),
                           ),
@@ -845,6 +824,21 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
           _summaryRow(context, "Duration", _selectedPkg?.duration ?? "—"),
           if (_guests != null) _summaryRow(context, "Guests", '$_guests'),
           for (final a in _selectedAddOns) _summaryRow(context, a.name, "+${formatPeso(a.price)}"),
+          if (_loyaltyPct != null) ...[
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              activeColor: Colors.white,
+              title: Text("Loyalty discount ($_loyaltyPct%)", style: const TextStyle(color: Colors.white, fontSize: 13)),
+              subtitle: Text(
+                _applyLoyalty ? "Applied to the package price" : "Not applied",
+                style: const TextStyle(color: Colors.white70, fontSize: 11),
+              ),
+              value: _applyLoyalty,
+              onChanged: (v) => setState(() => _applyLoyalty = v),
+            ),
+            if (_discountPct > 0) _summaryRow(context, "Package discount", "-${formatPeso(_packageDiscount)}"),
+          ],
           const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Divider(height: 1, color: Colors.white24)),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,

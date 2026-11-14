@@ -8,7 +8,6 @@ import '../models/booth_package.dart';
 import 'booking_hours.dart';
 import 'local_db.dart';
 import 'offline_cache.dart';
-import '../widgets/time_selector.dart' show kLatestHour;
 import 'server_clock.dart';
 
 /// Thrown when the date the customer picked is no longer available —
@@ -75,6 +74,9 @@ class BookingRepository {
   static int _addOnsTotal(List<BoothAddOn> addOns) =>
       addOns.fold(0, (sum, a) => sum + (a.price ?? 0));
 
+  /// Package price after the loyalty discount. [pct] is 0 when no discount applies.
+  static int _afterDiscount(num price, int pct) => (price - (price * pct / 100)).round();
+
   /// `yyyy-MM-dd` — used as the `dateHolds` document id, since Firestore
   /// document ids have to be strings, not `DateTime`s.
   static String _dateKey(DateTime date) =>
@@ -90,16 +92,6 @@ class BookingRepository {
     final d = int.tryParse(parts[2]);
     if (y == null || m == null || d == null) return null;
     return DateTime(y, m, d);
-  }
-
-  /// Throws [SlotInPastException] when [date] + the start of [time]
-  /// ("10:00 AM – 12:00 PM") has already begun in Philippine time.
-  static void _assertNotInPast(DateTime date, String time) {
-    final start = BookingHours.startHourOf(time);
-    // An unreadable label can't be judged by hour; still refuse past dates.
-    if (BookingHours.isSlotInPast(date, start ?? kLatestHour)) {
-      throw const SlotInPastException();
-    }
   }
 
   /// Statuses that mean "this date is spoken for". A `cancelled` lock
@@ -204,17 +196,13 @@ class BookingRepository {
     String location = '',
     double? locationLat,
     double? locationLng,
+    int discountPercent = 0,
   }) async {
     // Use Firebase's clock, not the phone's, for the curfew and the hold.
     await ServerClock.sync();
 
-    // Booking curfew: no new bookings from 12:00 AM to 6:00 AM (Manila time).
+    // Booking curfew: no new bookings from 12:00 AM to 6:00 AM.
     if (!BookingHours.isOpen()) throw const BookingClosedException();
-
-    // No booking in the past: the chosen start time must still be ahead of
-    // us in Philippine time (this is the authoritative check — the UI only
-    // mirrors it).
-    _assertNotInPast(date, time);
 
     final bookingRef = _col.doc(); // client-generated id, no network call yet
     final lockRef = _locksCol.doc(_dateKey(date));
@@ -234,7 +222,10 @@ class BookingRepository {
         'packageId': package.id,
         'packageName': package.name,
         'duration': package.duration,
-        'price': package.price,
+        'price': _afterDiscount(package.price ?? 0, discountPercent),
+        'originalPrice': package.price ?? 0,
+        'discountPercent': discountPercent,
+        'discountAmount': (package.price ?? 0) - _afterDiscount(package.price ?? 0, discountPercent),
         'addOnNames': addOns.map((a) => a.name).toList(),
         'addOns': addOns.map((a) => {'name': a.name, 'price': a.price}).toList(),
         'addOnsPrice': _addOnsTotal(addOns),
@@ -273,6 +264,7 @@ class BookingRepository {
   /// someone else already holds or owns.
   static Future<void> updateReservation(
     String bookingId, {
+    int discountPercent = 0,
     required BoothPackage package,
     List<BoothAddOn> addOns = const [],
     required DateTime date,
@@ -282,9 +274,6 @@ class BookingRepository {
     double? locationLat,
     double? locationLng,
   }) async {
-    await ServerClock.sync();
-    _assertNotInPast(date, time);
-
     final bookingRef = _col.doc(bookingId);
     final newDateKey = _dateKey(date);
 
@@ -326,7 +315,10 @@ class BookingRepository {
         'packageId': package.id,
         'packageName': package.name,
         'duration': package.duration,
-        'price': package.price,
+        'price': _afterDiscount(package.price ?? 0, discountPercent),
+        'originalPrice': package.price ?? 0,
+        'discountPercent': discountPercent,
+        'discountAmount': (package.price ?? 0) - _afterDiscount(package.price ?? 0, discountPercent),
         'addOnNames': addOns.map((a) => a.name).toList(),
         'addOns': addOns.map((a) => {'name': a.name, 'price': a.price}).toList(),
         'addOnsPrice': _addOnsTotal(addOns),
