@@ -46,6 +46,7 @@ import 'admin_calendar_screen.dart';
 import 'admin_event_photos_screen.dart';
 import 'admin_camera_rentals_screen.dart';
 import 'admin_feedback_screen.dart';
+import 'admin_loyalty_screen.dart';
 import 'admin_login_screen.dart';
 import 'admin_messages_screen.dart';
 import 'admin_pricing_screen.dart';
@@ -678,11 +679,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ? _withDesktopHeader(context, "Live Queue & Timers", _buildLiveQueuePage(context, isDesktop: true))
             : _buildLiveQueuePage(context, isDesktop: false);
       case _AdminSection.loyalty:
-        const loyaltyStub = _ComingSoonSection(
-          icon: Icons.nfc_rounded,
-          title: "RFID Loyalty Rewards",
-        );
-        return isDesktop ? _withDesktopHeader(context, "RFID Loyalty Rewards", loyaltyStub) : loyaltyStub;
+        const loyaltyPage = AdminLoyaltyScreen();
+        return isDesktop ? _withDesktopHeader(context, "RFID Loyalty Rewards", loyaltyPage) : loyaltyPage;
       case _AdminSection.financialLogs:
         final logsPage = _buildFinancialLogsPage(context, isDesktop: isDesktop);
         return isDesktop ? _withDesktopHeader(context, "Financial Receipts/Logs", logsPage) : logsPage;
