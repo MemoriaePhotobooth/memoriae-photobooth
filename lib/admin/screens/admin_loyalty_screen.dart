@@ -109,6 +109,27 @@ class _AdminLoyaltyScreenState extends State<AdminLoyaltyScreen> {
     }
   }
 
+  Future<void> _reactivate(QueryDocumentSnapshot<Map<String, dynamic>> d) async {
+    try {
+      final hash = (d.data()['cardHash'] ?? '') as String;
+      final batch = _db.batch();
+      if (hash.isNotEmpty) {
+        batch.update(_db.collection('loyaltyCards').doc(hash), {'active': true});
+      }
+      batch.update(_db.collection('loyaltyMembers').doc(d.id), {'active': true});
+      await batch.commit();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Card reactivated.')));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not reactivate. Try again.')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final stream = _db
@@ -378,12 +399,13 @@ class _AdminLoyaltyScreenState extends State<AdminLoyaltyScreen> {
               color: Colors.white,
               onSelected: (v) {
                 if (v == 'deactivate') _confirmDeactivate(d);
+                if (v == 'reactivate') _reactivate(d);
               },
               itemBuilder: (_) => [
                 if (active)
                   const PopupMenuItem<String>(value: 'deactivate', child: Text('Deactivate card'))
                 else
-                  const PopupMenuItem<String>(enabled: false, child: Text('Already inactive')),
+                  const PopupMenuItem<String>(value: 'reactivate', child: Text('Reactivate card')),
               ],
             ),
           ),
