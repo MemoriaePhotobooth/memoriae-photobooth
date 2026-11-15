@@ -9,11 +9,21 @@ class PaymentInfo {
   final int paid;
   final int balance;
 
-  /// True when the customer chose a downpayment (even if the balance has
-  /// since been settled).
+  /// True when the customer chose a downpayment or to pay during the event
+  /// (even if the balance has since been settled).
   final bool isSplit;
 
-  const PaymentInfo({required this.total, required this.paid, required this.balance, required this.isSplit});
+  /// True when the customer chose to pay everything during the event
+  /// (nothing was paid online).
+  final bool isOnEvent;
+
+  const PaymentInfo({
+    required this.total,
+    required this.paid,
+    required this.balance,
+    required this.isSplit,
+    this.isOnEvent = false,
+  });
 
   bool get hasBalance => balance > 0;
 
@@ -22,16 +32,23 @@ class PaymentInfo {
     final addOns = (b['addOnsPrice'] as num?)?.toInt() ?? 0;
     final total = price + addOns;
     final option = b['paymentOption'] as String?;
-    if (option != 'downpayment') {
+    // 'on_event' = the customer chose to pay everything during the event:
+    // nothing paid yet, the whole total is the balance (amountPaid is 0).
+    if (option != 'downpayment' && option != 'on_event') {
       return PaymentInfo(total: total, paid: total, balance: 0, isSplit: false);
     }
-    final amountPaid = ((b['amountPaid'] as num?)?.toInt() ?? total).clamp(0, total).toInt();
+    final amountPaid = (option == 'on_event'
+            ? 0
+            : ((b['amountPaid'] as num?)?.toInt() ?? total))
+        .clamp(0, total)
+        .toInt();
     final settled = b['balancePaid'] == true;
     return PaymentInfo(
       total: total,
       paid: settled ? total : amountPaid,
       balance: settled ? 0 : total - amountPaid,
       isSplit: true,
+      isOnEvent: option == 'on_event',
     );
   }
 }

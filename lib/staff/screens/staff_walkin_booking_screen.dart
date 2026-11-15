@@ -16,6 +16,7 @@ import '../theme/app_palette.dart';
 import '../widgets/dashboard_kit.dart';
 import '../widgets/package_photo.dart';
 import '../../user/services/studio_payment_account.dart';
+import '../../user/widgets/location_picker_screen.dart';
 
 String _peso(int amount) => '₱${NumberFormat('#,##0').format(amount)}';
 
@@ -68,6 +69,10 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
   bool _submitting = false;
   String? _error;
   bool _packageError = false;
+
+  /// Where the event is — pinned on the same Laguna-only map the customer
+  /// app uses. Optional for walk-ins.
+  PickedLocation? _location;
 
   static final _emailPattern = RegExp(r'^[\w\.\-\+]+@[\w\-]+\.[\w\-\.]+$');
 
@@ -380,6 +385,9 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
         time: _formatTime(_time),
         guests: int.tryParse(_guestsController.text.trim()),
         occasion: _occasionController.text.trim(),
+        location: _location?.address ?? '',
+        locationLat: _location?.lat,
+        locationLng: _location?.lng,
         paymentMethod: _paymentMethod,
         amountReceived: amountReceived,
         staffId: staffId,
@@ -395,6 +403,77 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
         _error = _friendlyError(e);
       });
     }
+  }
+
+  Future<void> _pickLocation() async {
+    FocusScope.of(context).unfocus();
+    final result = await Navigator.of(context).push<PickedLocation>(
+      MaterialPageRoute(builder: (_) => LocationPickerScreen(initial: _location)),
+    );
+    if (result != null && mounted) setState(() => _location = result);
+  }
+
+  /// Same "Pin your event location" card the customer sees when booking
+  /// online. Opens the Laguna-only map picker.
+  Widget _locationCard(BuildContext context) {
+    final loc = _location;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: _pickLocation,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppPalette.surface(context),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: loc == null ? AppColors.accent.withValues(alpha: 0.3) : AppPalette.divider(context)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(color: AppColors.accent.withValues(alpha: 0.12), shape: BoxShape.circle),
+                child: const Icon(Icons.map_outlined, size: 18, color: AppColors.accent),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      loc?.address ?? "Pin the event location (optional)",
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppPalette.textPrimary(context)),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      loc != null
+                          ? '${loc.lat.toStringAsFixed(4)}° N, ${loc.lng.toStringAsFixed(4)}° E'
+                          : "Tap to drop a pin on the map (Laguna only)",
+                      style: TextStyle(fontSize: 11, color: AppPalette.textMuted(context)),
+                    ),
+                  ],
+                ),
+              ),
+              if (loc != null)
+                IconButton(
+                  tooltip: 'Remove location',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => setState(() => _location = null),
+                  icon: Icon(Icons.close_rounded, size: 18, color: AppPalette.textMuted(context)),
+                )
+              else
+                Icon(Icons.chevron_right, size: 18, color: AppPalette.textMuted(context)),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   // ───────────────────────── UI ─────────────────────────
@@ -718,6 +797,8 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
                                     ),
                                   ],
                                 ),
+                                const SizedBox(height: 12),
+                                _locationCard(context),
                               ],
                             ),
                           ),

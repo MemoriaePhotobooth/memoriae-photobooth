@@ -114,7 +114,8 @@ class _PhotoboothBookingScreenState extends State<PhotoboothBookingScreen> with 
           .snapshots()
           .listen((snap) {
         final pct = snap.data()?['discountPercent'];
-        if (mounted) setState(() => _loyaltyPct = pct is num && pct > 0 ? pct.toInt() : null);
+        final active = snap.data()?['active'] != false;
+        if (mounted) setState(() => _loyaltyPct = active && pct is num && pct > 0 ? pct.toInt() : null);
       }, onError: (_) {});
     }
     _hoursTimer = Timer.periodic(const Duration(seconds: 20), (_) => _refreshBookingOpen());

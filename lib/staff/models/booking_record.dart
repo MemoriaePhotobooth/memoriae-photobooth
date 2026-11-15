@@ -134,10 +134,14 @@ class BookingRecord {
   /// True when the customer reserved with a downpayment.
   bool get isDownpayment => paymentOption == 'downpayment';
 
+  /// True when the customer chose to pay everything during the event
+  /// (nothing was paid online, no receipt).
+  bool get isPayOnEvent => paymentOption == 'on_event';
+
   /// Money actually received so far. Equals [totalPrice] for full payments
   /// (and for older bookings with no payment fields).
   int get paidAmount {
-    if (!isDownpayment || balancePaid) return totalPrice;
+    if (!(isDownpayment || isPayOnEvent) || balancePaid) return totalPrice;
     final paid = amountPaid ?? totalPrice;
     return paid < 0 ? 0 : (paid > totalPrice ? totalPrice : paid);
   }

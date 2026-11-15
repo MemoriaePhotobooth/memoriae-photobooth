@@ -3249,8 +3249,8 @@ class _BookingDetailPaneState extends State<_BookingDetailPane> {
               _detailRow(context, "Package", _money(b.price)),
               if (b.addOnNames.isNotEmpty) _detailRow(context, "Add-ons", '${b.addOnNames.join(", ")} (+${_money(b.addOnsPrice)})'),
               _detailRow(context, "Total", _money(b.totalPrice)),
-              if (b.isDownpayment) ...[
-                _detailRow(context, "Paid so far", '${_money(b.paidAmount)} (downpayment)'),
+              if (b.isDownpayment || b.isPayOnEvent) ...[
+                _detailRow(context, "Paid so far", b.isPayOnEvent ? 'Nothing yet (pay during the event)' : '${_money(b.paidAmount)} (downpayment)'),
                 _detailRow(context, "Balance", b.hasBalance ? '${_money(b.balanceDue)} — collect on event day' : 'Settled'),
                 if (b.hasBalance && b.status != 'cancelled' && b.status != 'awaiting_receipt') ...[
                   const SizedBox(height: 10),
@@ -3336,7 +3336,7 @@ class _BookingDetailPaneState extends State<_BookingDetailPane> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          b.receiptFileName.isNotEmpty ? "Uploading \"${b.receiptFileName}\" to cloud storage — check back shortly." : "No receipt on file.",
+                          b.isPayOnEvent ? "No online payment — the customer will pay ${_money(b.totalPrice)} during the event." : b.receiptFileName.isNotEmpty ? "Uploading \"${b.receiptFileName}\" to cloud storage — check back shortly." : "No receipt on file.",
                           style: TextStyle(fontSize: 12, color: AppPalette.textMuted(context)),
                         ),
                       ),
@@ -3440,7 +3440,9 @@ class _BookingDetailPaneState extends State<_BookingDetailPane> {
 
     final (String, IconData, Color) info = switch (status) {
       'pending_confirmation' => (
-          "Check the receipt above, then approve or reject this request.",
+          b.isPayOnEvent
+              ? "This customer will pay during the event. Approve or reject this request."
+              : "Check the receipt above, then approve or reject this request.",
           Icons.visibility_outlined,
           const Color(0xFFB07A2A),
         ),

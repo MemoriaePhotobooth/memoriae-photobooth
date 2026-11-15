@@ -17,11 +17,13 @@ const String _maptilerKey = String.fromEnvironment('MAPTILER_KEY');
 const String _locationIqKey = String.fromEnvironment('LOCATIONIQ_KEY');
 const String _userAgent = 'MemoriaePhotobooth/1.0';
 
-// Laguna only. Approximate bounding box covering the province.
+// Laguna only. Approximate bounding box covering the province. The map
+// itself is locked to this box (see MapOptions.cameraConstraint below), so
+// the customer can only see and pin places around Laguna.
 final LatLngBounds _kLagunaBounds = LatLngBounds(LatLng(14.0, 120.9), LatLng(14.6, 121.7));
-// The whole Philippines: the map can be panned here so customers see where
-// Laguna sits, but only pins inside Laguna are accepted.
-final LatLngBounds _kPhilippinesBounds = LatLngBounds(LatLng(4.5, 116.5), LatLng(21.5, 127.0));
+// Zoomed out this far the whole province just about fits on a phone screen;
+// zooming out any further would only show empty area outside Laguna.
+const double _kMinZoom = 10;
 const LatLng _kDefaultCenter = LatLng(14.2794, 121.4156); // Santa Cruz, Laguna
 
 bool _inLaguna(LatLng p) => _kLagunaBounds.contains(p);
@@ -35,6 +37,8 @@ class PickedLocation {
 }
 
 /// Full-screen "pin your event location" picker using flutter_map.
+/// Laguna only: the map is locked to the province and pins outside it are
+/// rejected. Used by the customer's booking screen and by staff walk-ins.
 class LocationPickerScreen extends StatefulWidget {
   final PickedLocation? initial;
   const LocationPickerScreen({super.key, this.initial});
@@ -204,8 +208,9 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
               options: MapOptions(
                 initialCenter: _pin,
                 initialZoom: 14,
-                // Lets the view move across the Philippines; pins are still limited to Laguna.
-                cameraConstraint: CameraConstraint.contain(bounds: _kPhilippinesBounds),
+                // The map can't be panned or zoomed out of Laguna.
+                minZoom: _kMinZoom,
+                cameraConstraint: CameraConstraint.contain(bounds: _kLagunaBounds),
                 // Rotation is disabled so the map stays north-up and no compass is needed.
                 interactionOptions: const InteractionOptions(
                   flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
@@ -286,7 +291,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                       onChanged: (_) => setState(() => _addressTouched = true),
                       decoration: InputDecoration(
                         errorText: (_addressTouched && _addressController.text.trim().isEmpty) ? 'Enter an address or venue name.' : null,
-                        hintText: 'e.g. Fairview Terraces Function Hall, QC',
+                        hintText: 'e.g. SM City Calamba Function Hall, Calamba',
                         hintStyle: TextStyle(color: muted, fontSize: 13),
                         filled: true,
                         fillColor: surface,
@@ -319,7 +324,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            'Tap the map to drop a pin, or search for a venue.',
+                            'Tap the map to drop a pin, or search for a venue in Laguna.',
                             style: TextStyle(fontSize: 12, color: muted),
                           ),
                         ),

@@ -233,7 +233,7 @@ class BookingRepository {
   /// How much the customer actually sent, from a raw booking document.
   static int _paidFromData(Map<String, dynamic> d) {
     final total = ((d['price'] as num?)?.toInt() ?? 0) + ((d['addOnsPrice'] as num?)?.toInt() ?? 0);
-    if (d['paymentOption'] == 'downpayment') {
+    if (d['paymentOption'] == 'downpayment' || d['paymentOption'] == 'on_event') {
       final paid = (d['amountPaid'] as num?)?.toInt() ?? total;
       return d['balancePaid'] == true ? total : paid;
     }

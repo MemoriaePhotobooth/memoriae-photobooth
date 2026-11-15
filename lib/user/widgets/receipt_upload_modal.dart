@@ -117,6 +117,10 @@ class _ReceiptUploadModalState extends State<ReceiptUploadModal> with WidgetsBin
   BusinessSettings _business = const BusinessSettings();
   bool _payFull = false;
 
+  // "Pay during the event": nothing is sent online, no receipt is needed —
+  // the customer pays the whole amount to staff on the event day.
+  bool _payOnEvent = false;
+
   // Guards against the periodic timer and a just-tapped submit racing each
   // other right at the 0-second mark — whichever gets here first wins, and
   // the modal only ever closes/calls back once.
@@ -206,22 +210,33 @@ class _ReceiptUploadModalState extends State<ReceiptUploadModal> with WidgetsBin
   bool get _unreadable => _receipt != null && ReceiptOcr.isSupported && _receipt!.ocr == null;
 
   /// Whether the booking can be submitted with the current screenshot.
-  bool get _canSubmit => _receipt != null && !_notReceipt && !_unreadable && !_submitting;
+  bool get _canSubmit {
+    if (_submitting) return false;
+    if (_payOnEvent) return _total != null;
+    return _receipt != null && !_notReceipt && !_unreadable;
+  }
 
   Future<void> _handleSubmitReceipt() async {
     if (!_canSubmit || _settled) return;
     setState(() => _submitting = true);
     try {
-      await BookingRepository.attachReceipt(
-        bookingId: widget.bookingId,
-        userId: widget.userId,
-        receiptBytes: _receipt!.bytes,
-        receiptFileName: _receipt!.name,
-        paymentOption: (_canSplit && !_payFull) ? 'downpayment' : 'full',
-        amountPaid: _amountDueNow,
-        receiptRefNo: _receipt!.ocr?.referenceNo,
-        receiptOcrAmount: _receipt!.ocr?.amount,
-      );
+      if (_payOnEvent) {
+        await BookingRepository.submitPayOnEvent(
+          bookingId: widget.bookingId,
+          userId: widget.userId,
+        );
+      } else {
+        await BookingRepository.attachReceipt(
+          bookingId: widget.bookingId,
+          userId: widget.userId,
+          receiptBytes: _receipt!.bytes,
+          receiptFileName: _receipt!.name,
+          paymentOption: (_canSplit && !_payFull) ? 'downpayment' : 'full',
+          amountPaid: _amountDueNow,
+          receiptRefNo: _receipt!.ocr?.referenceNo,
+          receiptOcrAmount: _receipt!.ocr?.amount,
+        );
+      }
       if (_settled) return; // the countdown beat us to it
       _settled = true;
       _timer?.cancel();
@@ -231,7 +246,7 @@ class _ReceiptUploadModalState extends State<ReceiptUploadModal> with WidgetsBin
     } catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);
-      AppToast.show(context, "Couldn't submit your receipt: $e");
+      AppToast.show(context, _payOnEvent ? "Couldn't submit your booking: $e" : "Couldn't submit your receipt: $e");
     }
   }
 
@@ -462,45 +477,47 @@ class _ReceiptUploadModalState extends State<ReceiptUploadModal> with WidgetsBin
       );
     }
 
-    if (!_canSplit) {
-      // Full payment only — just state the amount to send.
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: AppPalette.surface(context), borderRadius: BorderRadius.circular(14)),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text("Amount to send", style: TextStyle(fontSize: 12.5, color: AppPalette.textMuted(context))),
-            Text(formatPeso(total),
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.accent)),
-          ],
-        ),
-      );
-    }
+    final onEventOption = option(
+      selected: _payOnEvent,
+      title: "Pay during the event",
+      amount: formatPeso(total),
+      subtitle: "Pay nothing now. Pay the full amount to our staff on the event day.",
+      onTap: () => setState(() => _payOnEvent = true),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("How much will you pay now?",
+        Text(_canSplit ? "How much will you pay now?" : "How will you pay?",
             style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppPalette.textPrimary(context))),
         const SizedBox(height: 8),
+        if (_canSplit)
+          option(
+            selected: !_payOnEvent && !_payFull,
+            title: "Downpayment (${_settings.label})",
+            amount: formatPeso(down),
+            subtitle: "Reserves your date. Pay the remaining ${formatPeso(total - down)} on the event day.",
+            onTap: () => setState(() {
+              _payOnEvent = false;
+              _payFull = false;
+            }),
+          ),
         option(
-          selected: !_payFull,
-          title: "Downpayment (${_settings.label})",
-          amount: formatPeso(down),
-          subtitle: "Reserves your date. Pay the remaining ${formatPeso(total - down)} on the event day.",
-          onTap: () => setState(() => _payFull = false),
-        ),
-        option(
-          selected: _payFull,
+          selected: !_payOnEvent && (_payFull || !_canSplit),
           title: "Full payment",
           amount: formatPeso(total),
           subtitle: "Nothing left to pay later.",
-          onTap: () => setState(() => _payFull = true),
+          onTap: () => setState(() {
+            _payOnEvent = false;
+            _payFull = true;
+          }),
         ),
+        onEventOption,
         Text(
-          "Send exactly ${formatPeso(_amountDueNow ?? total)} via InstaPay / GCash, then upload the receipt below.",
+          _payOnEvent
+              ? "No payment needed now. Your date stays reserved and staff will confirm your booking. "
+                  "Please pay ${formatPeso(total)} to our staff on the event day."
+              : "Send exactly ${formatPeso(_amountDueNow ?? total)} via InstaPay / GCash, then upload the receipt below.",
           style: TextStyle(fontSize: 11.5, color: AppPalette.textMuted(context)),
         ),
       ],
@@ -698,28 +715,33 @@ class _ReceiptUploadModalState extends State<ReceiptUploadModal> with WidgetsBin
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        "Send Your Payment Receipt",
+                        _payOnEvent ? "Confirm Your Booking" : "Send Your Payment Receipt",
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppPalette.textPrimary(context)),
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        "We're holding your slot for 15 minutes. Upload your payment receipt before the timer runs out, "
-                        "or the booking will be automatically rejected and the date released.",
+                        _payOnEvent
+                            ? "We're holding your slot for 15 minutes. Confirm your booking before the timer runs out, "
+                                "or it will be automatically rejected and the date released."
+                            : "We're holding your slot for 15 minutes. Upload your payment receipt before the timer runs out, "
+                                "or the booking will be automatically rejected and the date released.",
                         style: TextStyle(fontSize: 12.5, height: 1.4, color: AppPalette.textMuted(context)),
                       ),
                       if (_total != null) ...[
                         const SizedBox(height: 16),
                         _buildPaymentChoice(context),
                       ],
-                      const SizedBox(height: 12),
-                      _buildGcashDetails(context),
-                      const SizedBox(height: 20),
-                      ReceiptUpload(
-                        receipt: _receipt,
-                        rejected: _notReceipt || _unreadable,
-                        onChanged: (r) => setState(() => _receipt = r),
-                      ),
-                      _buildOcrCheck(context),
+                      if (!_payOnEvent) ...[
+                        const SizedBox(height: 12),
+                        _buildGcashDetails(context),
+                        const SizedBox(height: 20),
+                        ReceiptUpload(
+                          receipt: _receipt,
+                          rejected: _notReceipt || _unreadable,
+                          onChanged: (r) => setState(() => _receipt = r),
+                        ),
+                        _buildOcrCheck(context),
+                      ],
                     ],
                   ),
                 ),
@@ -731,9 +753,9 @@ class _ReceiptUploadModalState extends State<ReceiptUploadModal> with WidgetsBin
                   child: ElevatedButton(
                     onPressed: _canSubmit ? _handleSubmitReceipt : null,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: (_receipt != null && !_notReceipt && !_unreadable) ? AppColors.accent : AppPalette.surface(context),
+                      backgroundColor: (_payOnEvent ? _total != null : (_receipt != null && !_notReceipt && !_unreadable)) ? AppColors.accent : AppPalette.surface(context),
                       disabledBackgroundColor: AppPalette.surface(context),
-                      foregroundColor: (_receipt != null && !_notReceipt && !_unreadable) ? AppColors.onAccent : const Color(0xFF9CA3AF),
+                      foregroundColor: (_payOnEvent ? _total != null : (_receipt != null && !_notReceipt && !_unreadable)) ? AppColors.onAccent : const Color(0xFF9CA3AF),
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       elevation: 0,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -745,7 +767,9 @@ class _ReceiptUploadModalState extends State<ReceiptUploadModal> with WidgetsBin
                             child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onAccent),
                           )
                         : Text(
-                            _notReceipt || _unreadable
+                            _payOnEvent
+                                ? "Confirm Booking — Pay on Event Day"
+                                : _notReceipt || _unreadable
                                 ? "Upload a GCash / bank transfer receipt to continue"
                                 : _receipt != null
                                     ? "Confirm & Submit Booking"

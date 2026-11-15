@@ -132,6 +132,9 @@ class BookingRepository {
     required String time,
     int? guests,
     String occasion = '',
+    String location = '',
+    double? locationLat,
+    double? locationLng,
     required String paymentMethod, // 'cash' | 'gcash'
     int? amountReceived,
     required String staffId,
@@ -174,6 +177,9 @@ class BookingRepository {
         'time': time,
         'guests': guests,
         'occasion': occasion,
+        'location': location,
+        'locationLat': locationLat,
+        'locationLng': locationLng,
         'receiptFileName': '',
         'receiptUrl': '',
         'status': 'confirmed',
@@ -372,7 +378,7 @@ class BookingRepository {
   /// How much the customer actually sent, from a raw booking document.
   static int _paidFromData(Map<String, dynamic> d) {
     final total = ((d['price'] as num?)?.toInt() ?? 0) + ((d['addOnsPrice'] as num?)?.toInt() ?? 0);
-    if (d['paymentOption'] == 'downpayment') {
+    if (d['paymentOption'] == 'downpayment' || d['paymentOption'] == 'on_event') {
       final paid = (d['amountPaid'] as num?)?.toInt() ?? total;
       return d['balancePaid'] == true ? total : paid;
     }

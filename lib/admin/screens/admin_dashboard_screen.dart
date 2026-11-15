@@ -2607,7 +2607,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _holdRow(BuildContext context, BookingRecord b, {required bool isDesktop}) {
-    final canApprove = b.receiptUrl.isNotEmpty;
+    final canApprove = b.receiptUrl.isNotEmpty || b.isPayOnEvent;
     final info = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2619,7 +2619,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ),
         const SizedBox(height: 2),
         Text(
-          '${b.packageName} · ${canApprove ? "Receipt attached" : "Awaiting receipt"}',
+          '${b.packageName} · ${b.isPayOnEvent ? "Pay during the event" : canApprove ? "Receipt attached" : "Awaiting receipt"}',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(fontSize: 11, color: AppPalette.textMuted(context)),
@@ -4566,8 +4566,8 @@ class _BookingDetailPaneState extends State<_BookingDetailPane> {
                   _detailRow(context, Icons.add_circle_outline_rounded, "Add-ons", '${b.addOnNames.join(", ")} (+₱${b.addOnsPrice})'),
                 Divider(height: 20, color: AppPalette.divider(context)),
                 _detailRow(context, Icons.payments_rounded, "Total", '₱${b.totalPrice}', emphasize: true),
-                if (b.isDownpayment) ...[
-                  _detailRow(context, Icons.savings_outlined, "Paid so far", '₱${b.paidAmount} (downpayment)'),
+                if (b.isDownpayment || b.isPayOnEvent) ...[
+                  _detailRow(context, Icons.savings_outlined, "Paid so far", b.isPayOnEvent ? 'Nothing yet (pay during the event)' : '₱${b.paidAmount} (downpayment)'),
                   _detailRow(
                     context,
                     Icons.account_balance_wallet_outlined,
@@ -4633,7 +4633,7 @@ class _BookingDetailPaneState extends State<_BookingDetailPane> {
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            b.receiptFileName.isNotEmpty ? "Customer attached \"${b.receiptFileName}\", but it didn't save correctly." : "No receipt on file.",
+                            b.isPayOnEvent ? "No online payment — the customer will pay ₱${b.totalPrice} during the event." : b.receiptFileName.isNotEmpty ? "Customer attached \"${b.receiptFileName}\", but it didn't save correctly." : "No receipt on file.",
                             style: TextStyle(fontSize: 12, color: AppPalette.textMuted(context)),
                           ),
                         ),

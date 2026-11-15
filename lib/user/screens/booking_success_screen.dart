@@ -52,7 +52,7 @@ class BookingSuccessScreen extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              "We've received your receipt and reserved your slot.",
+              "We've received your booking and reserved your slot.",
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: AppPalette.textSecondary(context)),
             ),

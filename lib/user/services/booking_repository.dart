@@ -416,6 +416,55 @@ class BookingRepository {
     await _assignInvoiceNumber(bookingId);
   }
 
+  /// Submits the booking with **no online payment**: the customer will pay
+  /// the whole amount on the event day. Same effect as [attachReceipt] on the
+  /// hold (it becomes a `pending_confirmation` request and the date lock is
+  /// kept), but there is no receipt — `paymentOption` is `'on_event'`,
+  /// nothing is paid yet and the full total is stored as `balanceDue` for
+  /// staff to collect (and mark with `markBalancePaid` on the Staff/Admin side).
+  static Future<void> submitPayOnEvent({
+    required String bookingId,
+    required String userId,
+  }) async {
+    final bookingRef = _col.doc(bookingId);
+    final snap = await bookingRef.get();
+    final data = snap.data();
+    if (data == null) {
+      throw const DateUnavailableException("This booking no longer exists — please start again.");
+    }
+    if ((data['status'] as String? ?? '') == 'cancelled') {
+      throw const DateUnavailableException(
+        "Your 15-minute hold ran out and the slot was released. Please book again.",
+      );
+    }
+
+    final total = ((data['price'] as num?)?.toInt() ?? 0) + ((data['addOnsPrice'] as num?)?.toInt() ?? 0);
+
+    final batch = _db.batch();
+    batch.update(bookingRef, {
+      'receiptFileName': '',
+      'receiptUrl': '',
+      'paymentOption': 'on_event',
+      'amountPaid': 0,
+      'balanceDue': total,
+      'balancePaid': false,
+      'status': 'pending_confirmation',
+      'holdExpiresAt': FieldValue.delete(),
+      'receiptSubmittedAt': FieldValue.serverTimestamp(),
+    });
+
+    final dateTs = data['date'];
+    if (dateTs is Timestamp) {
+      batch.update(_locksCol.doc(_dateKey(dateTs.toDate())), {
+        'status': 'pending_confirmation',
+        'holdExpiresAt': FieldValue.delete(),
+      });
+    }
+    await batch.commit();
+
+    await _assignInvoiceNumber(bookingId);
+  }
+
   /// The booking's total (package + add-ons) in pesos, or null if the
   /// booking can't be read. Lets the receipt modal show what to pay
   /// without its callers having to pass the amount in.

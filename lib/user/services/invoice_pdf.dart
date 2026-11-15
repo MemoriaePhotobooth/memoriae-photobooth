@@ -150,7 +150,7 @@ class InvoicePdf {
             ),
             if (pay.isSplit) ...[
               pw.SizedBox(height: 10),
-              row(pay.hasBalance ? 'Downpayment received' : 'Paid', money(pay.paid)),
+              row(pay.hasBalance ? (pay.isOnEvent ? 'Paid online' : 'Downpayment received') : 'Paid', money(pay.paid)),
               if (pay.hasBalance) ...[
                 pw.SizedBox(height: 6),
                 pw.Row(
@@ -164,7 +164,9 @@ class InvoicePdf {
             ],
             pw.SizedBox(height: 18),
             pw.Text(
-              pay.hasBalance
+              pay.hasBalance && pay.isOnEvent
+                  ? 'You chose to pay during the event. Please settle the full ${money(pay.balance)} on the event day.'
+                  : pay.hasBalance
                   ? 'Downpayment received. Please settle the remaining ${money(pay.balance)} on the event day.'
                   : staff.isEmpty
                       ? 'Payment proof received. Our team will confirm your booking shortly.'

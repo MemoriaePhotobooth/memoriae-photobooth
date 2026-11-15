@@ -211,7 +211,7 @@ class BookingInvoiceScreen extends StatelessWidget {
                         ),
                         if (pay.isSplit) ...[
                           const SizedBox(height: 12),
-                          _line(context, pay.hasBalance ? "Downpayment received" : "Paid", formatPeso(pay.paid)),
+                          _line(context, pay.hasBalance ? (pay.isOnEvent ? "Paid online" : "Downpayment received") : "Paid", formatPeso(pay.paid)),
                           if (pay.hasBalance) ...[
                             const SizedBox(height: 8),
                             Row(
@@ -231,7 +231,9 @@ class BookingInvoiceScreen extends StatelessWidget {
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(color: AppPalette.surface(context), borderRadius: BorderRadius.circular(12)),
                           child: Text(
-                            pay.hasBalance
+                            pay.hasBalance && pay.isOnEvent
+                                ? "You chose to pay during the event. Please settle the full ${formatPeso(pay.balance)} on the event day."
+                                : pay.hasBalance
                                 ? (staff.isEmpty
                                     ? "Downpayment received. Please settle the remaining ${formatPeso(pay.balance)} on the event day."
                                     : "Downpayment confirmed by $staff. Please settle the remaining ${formatPeso(pay.balance)} on the event day.")
