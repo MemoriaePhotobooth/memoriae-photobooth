@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -281,6 +283,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _refreshUser(); // pick up a newly saved refund account
                   },
                 ),
+                if (FirebaseAuth.instance.currentUser != null) _loyaltyMenuRow(context),
                 _menuRow(
                   context: context,
                   icon: Icons.settings_outlined,
@@ -410,6 +413,188 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const Spacer(),
         Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppPalette.textPrimary(context))),
       ],
+    );
+  }
+
+  /// Loyalty card row. Status comes from loyaltyMembers/{uid}:
+  /// no doc = Not linked, doc with active false = Inactive, otherwise Active.
+  Widget _loyaltyMenuRow(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance.collection('loyaltyMembers').doc(uid).snapshots(),
+      builder: (context, snap) {
+        final data = snap.data?.data();
+        String status = '';
+        if (snap.hasData && data == null) {
+          status = 'Not linked';
+        } else if (data != null) {
+          status = data['active'] == false ? 'Inactive' : 'Active';
+        }
+        return _menuRow(
+          context: context,
+          icon: Icons.discount_outlined,
+          label: 'Loyalty card',
+          hint: status,
+          onTap: () => _showLoyaltySheet(context, status, data),
+        );
+      },
+    );
+  }
+
+  void _showLoyaltySheet(BuildContext context, String status, Map<String, dynamic>? data) {
+    final linked = data?['linkedAt'];
+    final since = linked is Timestamp ? DateFormat('MMM d, y').format(linked.toDate()) : '—';
+    final pct = (data?['discountPercent'] as num?)?.toInt() ?? 10;
+    final isActive = status == 'Active';
+
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Close',
+      barrierColor: Colors.black.withValues(alpha: 0.35),
+      transitionDuration: const Duration(milliseconds: 280),
+      pageBuilder: (ctx, animation, secondaryAnimation) => SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 380),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.18),
+                      blurRadius: 32,
+                      offset: const Offset(0, 12),
+                    ),
+                  ],
+                ),
+                child: _loyaltyDialogBody(ctx, status, pct, since, isActive),
+              ),
+            ),
+          ),
+        ),
+      ),
+      transitionBuilder: (ctx, animation, secondaryAnimation, child) {
+        // Floating in: fade and scale up from slightly smaller, with an ease curve.
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.92, end: 1.0).animate(curved),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _loyaltyDialogBody(BuildContext ctx, String status, int pct, String since, bool isActive) {
+    final notLinked = status == 'Not linked';
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.accent,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.discount_outlined, color: Colors.white, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Loyalty card',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppPalette.textPrimary(ctx)),
+                  ),
+                  Text(
+                    'Your studio member card',
+                    style: TextStyle(fontSize: 12, color: AppPalette.textMuted(ctx)),
+                  ),
+                ],
+              ),
+            ),
+            InkWell(
+              onTap: () => Navigator.of(ctx).pop(),
+              borderRadius: BorderRadius.circular(15),
+              child: Container(
+                width: 30,
+                height: 30,
+                alignment: Alignment.center,
+                decoration: const BoxDecoration(color: Color(0xFFF4F4F4), shape: BoxShape.circle),
+                child: Icon(Icons.close_rounded, size: 16, color: AppPalette.textMuted(ctx)),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (notLinked)
+          Text(
+            'You do not have a loyalty card yet. Ask the staff to link yours at the studio to get 10% off your package.',
+            style: TextStyle(fontSize: 13, color: AppPalette.textMuted(ctx)),
+          )
+        else ...[
+          _statusPill(isActive ? 'Active' : 'Inactive', isActive),
+          const SizedBox(height: 14),
+          _detailRow(ctx, 'Discount', '$pct% off the package'),
+          _detailRow(ctx, 'Linked', since),
+          _detailRow(ctx, 'Applies to', 'Every booking', last: true),
+          const SizedBox(height: 10),
+          Text(
+            isActive
+                ? 'Applied automatically when you book a package.'
+                : 'Card deactivated. Ask the staff to link a card again.',
+            style: TextStyle(fontSize: 12, color: AppPalette.textMuted(ctx)),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _statusPill(String text, bool active) {
+    final color = active ? const Color(0xFF0F6E56) : const Color(0xFF6B6B6B);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration: BoxDecoration(
+        border: Border.all(color: color),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        '● $text',
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: color),
+      ),
+    );
+  }
+
+  Widget _detailRow(BuildContext ctx, String label, String value, {bool last = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 11),
+      decoration: BoxDecoration(
+        border: last ? null : const Border(bottom: BorderSide(color: Color(0xFFECECEC), width: 0.5)),
+      ),
+      child: Row(
+        children: [
+          Text(label, style: TextStyle(fontSize: 13, color: AppPalette.textMuted(ctx))),
+          const Spacer(),
+          Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppPalette.textPrimary(ctx))),
+        ],
+      ),
     );
   }
 
