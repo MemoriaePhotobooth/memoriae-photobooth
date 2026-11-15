@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -7,9 +5,15 @@ import 'package:intl/intl.dart';
 import '../theme/app_palette.dart';
 
 const Color _kMaroon = Color(0xFF6E1B1E);
+const Color _kMaroonTint = Color(0xFFF3E4E4);
+const Color _kGreen = Color(0xFF0F6E56);
+const Color _kGreenTint = Color(0xFFE1F5EE);
+const Color _kBorder = Color(0xFFE5E5E5);
 
-/// Admin view of RFID loyalty members: linked card, active status, and discount.
-/// Admins can deactivate a card here; the member loses the discount.
+enum _Range { today, week, month, all }
+
+/// Admin view of RFID loyalty members. Filter by when the card was linked,
+/// search, and deactivate a card (the member loses the discount).
 class AdminLoyaltyScreen extends StatefulWidget {
   const AdminLoyaltyScreen({super.key});
 
@@ -21,6 +25,7 @@ class _AdminLoyaltyScreenState extends State<AdminLoyaltyScreen> {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final TextEditingController _searchCtrl = TextEditingController();
   String _query = '';
+  _Range _range = _Range.month;
 
   // Profile and card status per member, fetched once and reused across rebuilds.
   final Map<String, Map<String, dynamic>> _users = {};
@@ -59,6 +64,29 @@ class _AdminLoyaltyScreenState extends State<AdminLoyaltyScreen> {
         _loading.remove(id);
       }
     });
+  }
+
+  /// Start of the selected range, or null for "All time".
+  DateTime? _rangeStart() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    switch (_range) {
+      case _Range.today:
+        return today;
+      case _Range.week:
+        return today.subtract(Duration(days: now.weekday - 1));
+      case _Range.month:
+        return DateTime(now.year, now.month, 1);
+      case _Range.all:
+        return null;
+    }
+  }
+
+  bool _inRange(QueryDocumentSnapshot<Map<String, dynamic>> d) {
+    final start = _rangeStart();
+    if (start == null) return true;
+    final ts = d.data()['linkedAt'];
+    return ts is Timestamp && !ts.toDate().isBefore(start);
   }
 
   Future<void> _confirmDeactivate(QueryDocumentSnapshot<Map<String, dynamic>> d) async {
@@ -123,14 +151,8 @@ class _AdminLoyaltyScreenState extends State<AdminLoyaltyScreen> {
         final docs = snap.data!.docs;
         WidgetsBinding.instance.addPostFrameCallback((_) => _ensureData(docs));
 
-        final monthStart = DateTime(DateTime.now().year, DateTime.now().month, 1);
-        final thisMonth = docs.where((d) {
-          final ts = d.data()['linkedAt'];
-          return ts is Timestamp && !ts.toDate().isBefore(monthStart);
-        }).length;
-        final activeCount = docs.where((d) => _cardActive[d.id] ?? true).length;
-
         final filtered = docs.where((d) {
+          if (!_inRange(d)) return false;
           if (_query.isEmpty) return true;
           final u = _users[d.id] ?? const <String, dynamic>{};
           final name = ((u['fullName'] ?? '') as String).toLowerCase();
@@ -142,24 +164,16 @@ class _AdminLoyaltyScreenState extends State<AdminLoyaltyScreen> {
           padding: const EdgeInsets.all(20),
           children: [
             _header(context),
-            Row(
-              children: [
-                Expanded(child: _statCard(context, Icons.card_membership_outlined, 'Members', '${docs.length}')),
-                const SizedBox(width: 12),
-                Expanded(child: _statCard(context, Icons.check_circle_outline, 'Active cards', '$activeCount')),
-                const SizedBox(width: 12),
-                Expanded(child: _statCard(context, Icons.calendar_month_outlined, 'Linked this month', '$thisMonth')),
-              ],
-            ),
-            const SizedBox(height: 18),
-            _searchField(context),
-            const SizedBox(height: 16),
+            _rangeChips(),
+            const SizedBox(height: 14),
+            _searchField(),
+            const SizedBox(height: 14),
             if (docs.isEmpty)
               _message(context, 'No loyalty members yet. Link a card from the staff app to get started.')
             else if (filtered.isEmpty)
-              _message(context, 'No member matches that search.')
+              _message(context, 'No member matches this filter.')
             else
-              for (final d in filtered) _memberCard(context, d),
+              _list(context, filtered),
           ],
         );
       },
@@ -168,117 +182,124 @@ class _AdminLoyaltyScreenState extends State<AdminLoyaltyScreen> {
 
   Widget _header(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Loyalty members',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: AppPalette.textPrimary(context)),
+            'RFID Loyalty Rewards',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: AppPalette.textPrimary(context)),
           ),
           const SizedBox(height: 4),
           Text(
-            'Customers with a linked RFID card and a 10% package discount',
-            style: TextStyle(fontSize: 13, color: AppPalette.textMuted(context)),
+            'Members linked · ${DateFormat('MMMM y').format(DateTime.now())}',
+            style: TextStyle(fontSize: 12, color: AppPalette.textMuted(context)),
           ),
         ],
       ),
     );
   }
 
-  Widget _statCard(BuildContext context, IconData icon, String label, String value) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.dividerColor),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: _kMaroon.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, size: 20, color: _kMaroon),
+  Widget _rangeChips() {
+    Widget chip(String label, _Range value) {
+      final selected = _range == value;
+      return GestureDetector(
+        onTap: () => setState(() => _range = value),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          decoration: BoxDecoration(
+            color: selected ? _kMaroon : Colors.white,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: selected ? _kMaroon : _kBorder),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: TextStyle(fontSize: 12, color: AppPalette.textMuted(context))),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w600,
-                    color: AppPalette.textPrimary(context),
-                  ),
-                ),
-              ],
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: selected ? Colors.white : const Color(0xFF1A1A1A),
             ),
           ),
-        ],
-      ),
+        ),
+      );
+    }
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        chip('Today', _Range.today),
+        chip('This week', _Range.week),
+        chip('This month', _Range.month),
+        chip('All time', _Range.all),
+      ],
     );
   }
 
-  Widget _searchField(BuildContext context) {
-    final theme = Theme.of(context);
-    OutlineInputBorder border(Color c, [double w = 1]) => OutlineInputBorder(
-          borderRadius: BorderRadius.circular(999),
-          borderSide: BorderSide(color: c, width: w),
-        );
+  Widget _searchField() {
     return TextField(
       controller: _searchCtrl,
       onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
       decoration: InputDecoration(
         hintText: 'Search by name or email',
-        prefixIcon: const Icon(Icons.search_rounded),
+        prefixIcon: const Icon(Icons.search_rounded, size: 20),
         isDense: true,
         filled: true,
-        fillColor: theme.colorScheme.surface,
+        fillColor: Colors.white,
         contentPadding: const EdgeInsets.symmetric(vertical: 12),
-        border: border(theme.dividerColor),
-        enabledBorder: border(theme.dividerColor),
-        focusedBorder: border(_kMaroon, 1.5),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(999),
+          borderSide: const BorderSide(color: _kBorder),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(999),
+          borderSide: const BorderSide(color: _kBorder),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(999),
+          borderSide: const BorderSide(color: _kMaroon, width: 1.5),
+        ),
       ),
     );
   }
 
-  Widget _memberCard(BuildContext context, QueryDocumentSnapshot<Map<String, dynamic>> d) {
-    final theme = Theme.of(context);
+  Widget _list(BuildContext context, List<QueryDocumentSnapshot<Map<String, dynamic>>> items) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Column(
+        children: [
+          for (var i = 0; i < items.length; i++) ...[
+            _memberRow(context, items[i]),
+            if (i < items.length - 1) const Divider(height: 1, color: Color(0xFFEFEFEF)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _memberRow(BuildContext context, QueryDocumentSnapshot<Map<String, dynamic>> d) {
     final u = _users[d.id];
     final name = ((u?['fullName'] ?? '') as String).trim();
     final email = ((u?['email'] ?? '') as String).trim();
     final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
     final pct = (d.data()['discountPercent'] as num?)?.toInt() ?? 10;
     final ts = d.data()['linkedAt'];
-    final linked = ts is Timestamp ? DateFormat('MMM d, y').format(ts.toDate()) : 'Pending';
+    final linked = ts is Timestamp ? DateFormat('MMM d').format(ts.toDate()) : 'Pending';
     final active = _cardActive[d.id] ?? true;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.dividerColor),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Row(
         children: [
           CircleAvatar(
-            radius: 20,
-            backgroundColor: _kMaroon,
+            radius: 18,
+            backgroundColor: _kMaroonTint,
             child: Text(
               initial,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+              style: const TextStyle(color: _kMaroon, fontWeight: FontWeight.w600, fontSize: 14),
             ),
           ),
           const SizedBox(width: 12),
@@ -290,58 +311,49 @@ class _AdminLoyaltyScreenState extends State<AdminLoyaltyScreen> {
                   u == null ? 'Loading...' : (name.isEmpty ? 'No name on file' : name),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: AppPalette.textPrimary(context),
-                  ),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppPalette.textPrimary(context)),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   email.isEmpty ? d.id : email,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 13, color: AppPalette.textMuted(context)),
+                  style: TextStyle(fontSize: 12, color: AppPalette.textMuted(context)),
                 ),
               ],
             ),
           ),
           const SizedBox(width: 8),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              _pill(
-                active ? 'Active' : 'Inactive',
-                active ? Colors.green.shade800 : AppPalette.textMuted(context),
-                active ? Colors.green.withValues(alpha: 0.12) : theme.dividerColor.withValues(alpha: 0.4),
+          Text(linked, style: TextStyle(fontSize: 12, color: AppPalette.textMuted(context))),
+          const SizedBox(width: 10),
+          _tag(active ? 'Active' : 'Inactive', active ? _kGreen : const Color(0xFF6B6B6B),
+              active ? _kGreenTint : const Color(0xFFF1F1F1)),
+          const SizedBox(width: 6),
+          _tag('$pct% off', _kMaroon, _kMaroonTint),
+          if (active) ...[
+            const SizedBox(width: 4),
+            SizedBox(
+              width: 36,
+              height: 36,
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                tooltip: 'Deactivate card',
+                icon: const Icon(Icons.block_rounded, size: 18),
+                color: const Color(0xFF8A8A8A),
+                onPressed: () => _confirmDeactivate(d),
               ),
-              const SizedBox(height: 6),
-              _pill('$pct% off', _kMaroon, _kMaroon.withValues(alpha: 0.08)),
-              const SizedBox(height: 4),
-              Text(
-                'Linked $linked',
-                style: TextStyle(fontSize: 11, color: AppPalette.textMuted(context)),
-              ),
-            ],
-          ),
-          if (active)
-            IconButton(
-              tooltip: 'Deactivate card',
-              icon: const Icon(Icons.block_rounded),
-              color: AppPalette.textMuted(context),
-              onPressed: () => _confirmDeactivate(d),
             ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _pill(String text, Color fg, Color bg) {
+  Widget _tag(String text, Color fg, Color bg) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
-      child: Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: fg)),
+      child: Text(text, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: fg)),
     );
   }
 
