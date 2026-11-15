@@ -3,23 +3,17 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
-import '../theme/app_palette.dart';
 
-const Color _kDanger = Color(0xFFDC2626);
-const Color _kDangerTint = Color(0xFFFDECEC);
-const Color _kSuccess = Color(0xFF16A34A);
-const Color _kSuccessTint = Color(0xFFE9F8EF);
+const Color _kMaroon = Color(0xFF6E1B1E);
+const Color _kBorder = Color(0xFFE5E5E5);
 
 /// Staff screen to link a loyalty card to a customer.
 ///
-/// Flow:
-///  1. Staff types the customer's email and taps "Find customer".
-///  2. Staff taps "Link card". This writes one `loyaltyLinkRequests/{staffUid}`
-///     document with the customer's UID and a server timestamp.
-///  3. Staff taps the card on the studio reader within 2 minutes.
-///     The Cloudflare Worker links the card and deletes the request.
-///  4. This screen sees the request disappear and shows "Card linked".
+/// 1. Staff finds the customer by email.
+/// 2. Staff taps "Link card", which writes loyaltyLinkRequests/{staffUid}.
+/// 3. The customer taps the card on the reader within 2 minutes. The Worker
+///    writes the result (linked, card_in_use, or no_customer) into that request.
+/// 4. This screen shows the result and removes the request.
 class StaffLoyaltyLinkScreen extends StatefulWidget {
   const StaffLoyaltyLinkScreen({super.key});
 
@@ -37,7 +31,7 @@ class _StaffLoyaltyLinkScreenState extends State<StaffLoyaltyLinkScreen> {
   bool _waiting = false;
   String? _error;
   String? _statusMessage;
-  bool _statusIsSuccess = false;
+  bool _statusIsError = false;
   QueryDocumentSnapshot<Map<String, dynamic>>? _customer;
   DateTime? _expiresAt;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _sub;
@@ -106,7 +100,6 @@ class _StaffLoyaltyLinkScreenState extends State<StaffLoyaltyLinkScreen> {
     try {
       await ref.set({
         'userId': customer.id,
-        // Server time, so a phone or PC with a wrong clock can't break the window.
         'createdAt': FieldValue.serverTimestamp(),
         'expiresAt': Timestamp.fromDate(expires),
       });
@@ -119,7 +112,7 @@ class _StaffLoyaltyLinkScreenState extends State<StaffLoyaltyLinkScreen> {
       _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
         if (!mounted) return;
         if (_expiresAt != null && DateTime.now().isAfter(_expiresAt!)) {
-          _cancelRequest(message: 'Request expired. Try again.');
+          _cancelRequest(message: 'Request expired. Try again.', isError: true);
         } else {
           setState(() {});
         }
@@ -132,31 +125,49 @@ class _StaffLoyaltyLinkScreenState extends State<StaffLoyaltyLinkScreen> {
   void _watchRequest(DocumentReference<Map<String, dynamic>> ref) {
     _sub?.cancel();
     _sub = ref.snapshots().listen((snap) {
-      // The Worker deletes the request once the card is linked.
-      if (!snap.exists && _waiting) {
-        final name = (_customer?.data()['name'] as String?) ?? 'customer';
-        _finish('Card linked to $name.');
+      if (!_waiting) return;
+      final status = snap.data()?['status'] as String?;
+      if (status == 'linked') {
+        final name = _customerName();
+        _finish('Card linked to $name.', isError: false);
+      } else if (status == 'card_in_use') {
+        _finish('This card is already linked to another customer.', isError: true);
+      } else if (status == 'no_customer') {
+        _finish('Customer account not found. Try again.', isError: true);
+      } else if (!snap.exists) {
+        // Request removed without a result (for example, cancelled elsewhere).
+        _finish('Request closed.', isError: true);
       }
     });
   }
 
-  void _finish(String message) {
+  String _customerName() {
+    final name = (_customer?.data()['fullName'] as String?)?.trim() ?? '';
+    return name.isEmpty ? 'customer' : name;
+  }
+
+  Future<void> _finish(String message, {required bool isError}) async {
     _sub?.cancel();
     _sub = null;
     _ticker?.cancel();
     _ticker = null;
+    try {
+      await _requestRef?.delete();
+    } catch (_) {
+      // Already gone. Nothing else to do.
+    }
     if (!mounted) return;
     setState(() {
       _waiting = false;
       _expiresAt = null;
       _customer = null;
       _statusMessage = message;
-      _statusIsSuccess = true;
+      _statusIsError = isError;
     });
     _emailCtrl.clear();
   }
 
-  Future<void> _cancelRequest({String? message}) async {
+  Future<void> _cancelRequest({String? message, bool isError = false}) async {
     _sub?.cancel();
     _sub = null;
     _ticker?.cancel();
@@ -165,14 +176,14 @@ class _StaffLoyaltyLinkScreenState extends State<StaffLoyaltyLinkScreen> {
       setState(() {
         _waiting = false;
         _expiresAt = null;
-        _statusMessage = message;
-        _statusIsSuccess = false;
+        _statusMessage = message ?? 'Cancelled.';
+        _statusIsError = isError;
       });
     }
     try {
       await _requestRef?.delete();
     } catch (_) {
-      // Already gone or expired on the server. Nothing else to do.
+      // Already gone or expired on the server.
     }
   }
 
@@ -180,445 +191,181 @@ class _StaffLoyaltyLinkScreenState extends State<StaffLoyaltyLinkScreen> {
     if (_expiresAt == null) return '';
     final left = _expiresAt!.difference(DateTime.now());
     final secs = left.inSeconds < 0 ? 0 : left.inSeconds;
-    final mm = (secs ~/ 60).toString().padLeft(2, '0');
+    final mm = (secs ~/ 60).toString();
     final ss = (secs % 60).toString().padLeft(2, '0');
     return '$mm:$ss';
   }
 
-  /// 1.0 at the start of the window, sliding down to 0.0 when it expires.
-  double _timeFraction() {
-    if (_expiresAt == null) return 0;
-    final f = _expiresAt!.difference(DateTime.now()).inMilliseconds /
-        _linkWindow.inMilliseconds;
-    if (f < 0) return 0;
-    if (f > 1) return 1;
-    return f;
-  }
-
-  static String _initials(String name, String email) {
-    final source = name.trim().isNotEmpty ? name.trim() : email.trim();
-    if (source.isEmpty) return '?';
-    final parts = source.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[1][0]).toUpperCase();
-    }
-    return parts[0][0].toUpperCase();
-  }
-
-  BoxDecoration _cardDecoration(BuildContext context) => BoxDecoration(
-        color: AppPalette.cardBg(context),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppPalette.divider(context)),
-        boxShadow: AppShadows.soft,
-      );
-
   @override
   Widget build(BuildContext context) {
     final customer = _customer;
-    final name = (customer?.data()['name'] as String?) ?? '';
-    final email = (customer?.data()['email'] as String?) ?? '';
+    final name = ((customer?.data()['fullName'] ?? '') as String).trim();
+    final email = ((customer?.data()['email'] ?? '') as String).trim();
 
     return Scaffold(
-      backgroundColor: AppPalette.bg(context),
       appBar: AppBar(title: const Text('Link loyalty card')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-        children: [
-          _buildIntro(),
-          const SizedBox(height: 24),
-          const _SectionLabel(step: '1', text: 'Find customer'),
-          const SizedBox(height: 10),
-          _buildSearchField(context),
-          const SizedBox(height: 12),
-          _buildFindButton(),
-          if (_error != null) ...[
-            const SizedBox(height: 12),
-            _buildErrorBanner(_error!),
-          ],
-          if (customer != null && !_waiting) ...[
-            const SizedBox(height: 24),
-            const _SectionLabel(step: '2', text: 'Confirm and link'),
-            const SizedBox(height: 10),
-            _buildCustomerCard(context, name, email),
-          ],
-          if (_waiting) ...[
-            const SizedBox(height: 24),
-            const _SectionLabel(step: '2', text: 'Tap the card'),
-            const SizedBox(height: 10),
-            _buildWaitingCard(context, name),
-          ],
-          if (_statusMessage != null && !_waiting) ...[
-            const SizedBox(height: 24),
-            _buildStatusCard(context, _statusMessage!, _statusIsSuccess),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildIntro() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.accent,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: AppShadows.accentGlow,
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.card_membership_rounded, color: Colors.white, size: 28),
-          ),
-          const SizedBox(width: 16),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Loyalty card linking',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: -0.3,
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              TextField(
+                controller: _emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                enabled: !_waiting,
+                onSubmitted: (_) => _findCustomer(),
+                decoration: InputDecoration(
+                  labelText: 'Customer email',
+                  hintText: 'name@example.com',
+                  prefixIcon: const Icon(Icons.mail_outline_rounded, size: 20),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: _kBorder),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: _kBorder),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: _kMaroon, width: 1.5),
                   ),
                 ),
-                SizedBox(height: 4),
-                Text(
-                  'Find the customer by email, then have them tap their card on the reader.',
-                  style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.35),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: _kMaroon,
+                  minimumSize: const Size.fromHeight(46),
+                ),
+                onPressed: (_searching || _waiting) ? null : _findCustomer,
+                icon: const Icon(Icons.search_rounded, size: 18),
+                label: Text(_searching ? 'Searching...' : 'Find customer'),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              ],
+              if (customer != null && !_waiting) ...[
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: _kBorder),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name.isEmpty ? 'Customer' : name,
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(email, style: const TextStyle(fontSize: 12, color: Color(0xFF6B6B6B))),
+                      const SizedBox(height: 14),
+                      FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _kMaroon,
+                          minimumSize: const Size.fromHeight(44),
+                        ),
+                        onPressed: _startLink,
+                        icon: const Icon(Icons.link_rounded, size: 18),
+                        label: const Text('Link card'),
+                      ),
+                    ],
+                  ),
                 ),
               ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSearchField(BuildContext context) {
-    OutlineInputBorder border(Color color, [double width = 1]) => OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: color, width: width),
-        );
-
-    return TextField(
-      controller: _emailCtrl,
-      enabled: !_waiting,
-      keyboardType: TextInputType.emailAddress,
-      textInputAction: TextInputAction.search,
-      onSubmitted: (_) => _findCustomer(),
-      style: TextStyle(color: AppPalette.textPrimary(context)),
-      decoration: InputDecoration(
-        labelText: 'Customer email',
-        hintText: 'name@example.com',
-        prefixIcon: const Icon(Icons.mail_outline_rounded),
-        filled: true,
-        fillColor: AppPalette.cardBg(context),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        border: border(AppPalette.divider(context)),
-        enabledBorder: border(AppPalette.divider(context)),
-        disabledBorder: border(AppPalette.divider(context)),
-        focusedBorder: border(AppColors.accent, 1.5),
-      ),
-    );
-  }
-
-  Widget _buildFindButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: FilledButton.icon(
-        style: FilledButton.styleFrom(
-          backgroundColor: AppColors.accent,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: AppColors.accent.withValues(alpha: 0.35),
-          disabledForegroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-        ),
-        onPressed: (_searching || _waiting) ? null : _findCustomer,
-        icon: _searching
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-              )
-            : const Icon(Icons.search_rounded),
-        label: Text(_searching ? 'Searching...' : 'Find customer'),
-      ),
-    );
-  }
-
-  Widget _buildErrorBanner(String message) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: _kDangerTint,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.error_outline_rounded, color: _kDanger, size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              message,
-              style: const TextStyle(color: _kDanger, fontSize: 14, fontWeight: FontWeight.w500),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCustomerCard(BuildContext context, String name, String email) {
-    final displayName = name.isEmpty ? 'Customer' : name;
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: _cardDecoration(context),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AppColors.accentTint(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Text(
-                  _initials(name, email),
-                  style: const TextStyle(
-                    color: AppColors.accent,
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
+              if (_waiting) ...[
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: _kBorder),
+                  ),
+                  child: Column(
+                    children: [
+                      const SizedBox(
+                        width: 56,
+                        height: 56,
+                        child: CircularProgressIndicator(strokeWidth: 4, color: _kMaroon),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Tap the card on the reader',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Linking ${_customerName()}',
+                        style: const TextStyle(fontSize: 13, color: Color(0xFF6B6B6B)),
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: _kMaroon),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          'Time left ${_timeLeft()}',
+                          style: const TextStyle(fontSize: 12, color: _kMaroon, fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _kMaroon,
+                          side: const BorderSide(color: _kMaroon),
+                          minimumSize: const Size.fromHeight(44),
+                        ),
+                        onPressed: () => _cancelRequest(),
+                        child: const Text('Cancel'),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      displayName,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: AppPalette.textPrimary(context),
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+              ],
+              if (_statusMessage != null && !_waiting) ...[
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: _statusIsError ? const Color(0xFFFBEAEA) : const Color(0xFFE1F5EE),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _statusIsError ? Icons.error_outline_rounded : Icons.check_circle_outline_rounded,
+                        size: 20,
+                        color: _statusIsError ? const Color(0xFFA32D2D) : const Color(0xFF0F6E56),
                       ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      email,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: AppPalette.textSecondary(context), fontSize: 13),
-                    ),
-                  ],
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _statusMessage!,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: _statusIsError ? const Color(0xFFA32D2D) : const Color(0xFF0F6E56),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
-          const SizedBox(height: 18),
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: FilledButton.icon(
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.accent,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-              ),
-              onPressed: _startLink,
-              icon: const Icon(Icons.link_rounded),
-              label: const Text('Link card'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWaitingCard(BuildContext context, String name) {
-    final fraction = _timeFraction();
-    final timeLeft = _timeLeft();
-    final muted = AppPalette.textSecondary(context);
-
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: _cardDecoration(context),
-      child: Column(
-        children: [
-          SizedBox(
-            width: 132,
-            height: 132,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                SizedBox(
-                  width: 132,
-                  height: 132,
-                  child: CircularProgressIndicator(
-                    value: fraction,
-                    strokeWidth: 6,
-                    strokeCap: StrokeCap.round,
-                    color: AppColors.accent,
-                    backgroundColor: AppPalette.divider(context),
-                  ),
-                ),
-                Container(
-                  width: 84,
-                  height: 84,
-                  decoration: BoxDecoration(
-                    color: AppColors.accentTint(0.08),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.contactless_rounded, color: AppColors.accent, size: 40),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Tap the card on the reader',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppPalette.textPrimary(context),
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              letterSpacing: -0.2,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            name.isEmpty ? 'Linking customer' : 'Linking $name',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: muted, fontSize: 14),
-          ),
-          const SizedBox(height: 18),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.accentTint(0.08),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              'Time left $timeLeft',
-              style: const TextStyle(
-                color: AppColors.accent,
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                fontFeatures: [FontFeature.tabularFigures()],
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(
-              value: fraction,
-              minHeight: 6,
-              color: AppColors.accent,
-              backgroundColor: AppPalette.divider(context),
-            ),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.accent,
-                side: BorderSide(color: AppColors.accent.withValues(alpha: 0.4)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-              onPressed: () => _cancelRequest(message: 'Cancelled.'),
-              icon: const Icon(Icons.close_rounded),
-              label: const Text('Cancel'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusCard(BuildContext context, String message, bool success) {
-    final bg = success ? _kSuccessTint : AppPalette.surface(context);
-    final fg = success ? _kSuccess : AppPalette.textSecondary(context);
-    final icon = success ? Icons.check_circle_rounded : Icons.info_outline_rounded;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: fg, size: 26),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              message,
-              style: TextStyle(
-                color: success ? const Color(0xFF14532D) : AppPalette.textPrimary(context),
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SectionLabel extends StatelessWidget {
-  final String step;
-  final String text;
-
-  const _SectionLabel({required this.step, required this.text});
-
-  @override
-  Widget build(BuildContext context) {  
-    return Row(
-      children: [
-        Container(
-          width: 22,
-          height: 22,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: AppColors.accent,
-            shape: BoxShape.circle,
-          ),
-          child: Text(
-            step,
-            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-          ),
         ),
-        const SizedBox(width: 8),
-        Text(
-          text.toUpperCase(),
-          style: TextStyle(
-            color: AppPalette.textMuted(context),
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 1.1,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
