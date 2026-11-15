@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart' show FirebaseException;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -65,6 +65,8 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
   String _paymentMethod = StaffSettings.defaultPayment.value;
   bool _lookingUp = false;
   String? _matchedUserId;
+  // Loyalty discount from a card tap (0 = none). Set by _applyLoyaltyMember.
+  int _loyaltyPct = 0;
   String _lastLookedUpEmail = '';
   bool _submitting = false;
   String? _error;
@@ -105,6 +107,8 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
 
   @override
   void dispose() {
+    _lookupSub?.cancel();
+    _lookupTimer?.cancel();
     _nameController.dispose();
     _emailController.dispose();
     _contactController.dispose();
@@ -333,7 +337,140 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
     return null;
   }
 
-  int _total(List<PricingItemRecord> _) => _selected?.price ?? 0;
+  // ---- Loyalty card scan (walk-in) ----
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _lookupSub;
+  Timer? _lookupTimer;
+  bool _scanning = false;
+  String? _scanMsg;
+  bool _scanIsError = false;
+
+  int get _discountAmount => ((_selected?.price ?? 0) * _loyaltyPct / 100).round();
+
+  DocumentReference<Map<String, dynamic>>? get _lookupRef {
+    final uid = AuthService.instance.currentUid;
+    if (uid == null || uid.isEmpty) return null;
+    return FirebaseFirestore.instance.collection('loyaltyLookupRequests').doc(uid);
+  }
+
+  Future<void> _scanLoyaltyCard() async {
+    final ref = _lookupRef;
+    if (ref == null) return;
+    _lookupSub?.cancel();
+    _lookupTimer?.cancel();
+    setState(() {
+      _scanning = true;
+      _scanMsg = 'Tap the customer card on the reader...';
+      _scanIsError = false;
+    });
+    try {
+      final expires = DateTime.now().add(const Duration(minutes: 2));
+      await ref.set({
+        'createdAt': FieldValue.serverTimestamp(),
+        'expiresAt': Timestamp.fromDate(expires),
+      });
+      _lookupSub = ref.snapshots().listen((snap) async {
+        final data = snap.data();
+        final status = data?['status'] as String?;
+        if (status == null) return;
+        _lookupSub?.cancel();
+        _lookupTimer?.cancel();
+        if (status == 'member') {
+          final uid = (data?['userId'] as String?) ?? '';
+          final pct = (data?['discountPercent'] as num?)?.toInt() ?? 10;
+          await _applyLoyaltyMember(uid, pct);
+        } else {
+          _stopScan('This card is not registered as a loyalty card.', error: true);
+        }
+        await ref.delete().catchError((_) {});
+      });
+      _lookupTimer = Timer(const Duration(minutes: 2), () {
+        _lookupSub?.cancel();
+        _stopScan('Scan timed out. Try again.', error: true);
+        ref.delete().catchError((_) {});
+      });
+    } catch (_) {
+      _stopScan('Could not start the scan. Try again.', error: true);
+    }
+  }
+
+  Future<void> _applyLoyaltyMember(String uid, int pct) async {
+    try {
+      final snap = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final d = snap.data() ?? <String, dynamic>{};
+      if (!mounted) return;
+      setState(() {
+        _nameController.text = (d['fullName'] ?? '') as String;
+        _emailController.text = (d['email'] ?? '') as String;
+        _contactController.text = (d['phone'] ?? d['contactNumber'] ?? '') as String;
+        _matchedUserId = uid;
+        _loyaltyPct = pct;
+      });
+      _stopScan('Loyalty member: $pct% off applied.', error: false);
+    } catch (_) {
+      _stopScan('Could not load the customer. Try again.', error: true);
+    }
+  }
+
+  void _stopScan(String message, {required bool error}) {
+    if (!mounted) return;
+    setState(() {
+      _scanning = false;
+      _scanMsg = message;
+      _scanIsError = error;
+    });
+  }
+
+  Widget _loyaltyScanTile(BuildContext context) {
+    const maroon = Color(0xFF6E1B1E);
+    final msg = _scanMsg;
+    final isErr = _scanIsError;
+    final fg = isErr ? const Color(0xFFA32D2D) : const Color(0xFF0F6E56);
+    final bg = isErr ? const Color(0xFFFBEAEA) : const Color(0xFFE1F5EE);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: maroon,
+            side: const BorderSide(color: maroon),
+            minimumSize: const Size.fromHeight(44),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          onPressed: _scanning ? null : _scanLoyaltyCard,
+          icon: _scanning
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: maroon),
+                )
+              : const Icon(Icons.contactless_outlined, size: 18),
+          label: Text(
+            _scanning ? 'Waiting for card...' : 'Scan loyalty card',
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
+        if (msg != null) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+            child: Row(
+              children: [
+                Icon(isErr ? Icons.error_outline_rounded : Icons.check_circle_outline_rounded,
+                    size: 16, color: fg),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(msg, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: fg)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  int _total(List<PricingItemRecord> _) => (_selected?.price ?? 0) - _discountAmount;
 
   Future<void> _submit(Set<DateTime> locked) async {
     if (_submitting) return;
@@ -380,7 +517,7 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
         packageId: pkg.id,
         packageName: pkg.name,
         duration: pkg.unit,
-        price: pkg.price,
+        price: pkg.price - _discountAmount,
         date: _date,
         time: _formatTime(_time),
         guests: int.tryParse(_guestsController.text.trim()),
@@ -445,7 +582,7 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      loc?.address ?? "Pin the event location (optional)",
+                      loc?.address ?? "Pin the event location",
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppPalette.textPrimary(context)),
@@ -655,6 +792,8 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
                             subtitle: "Who's booking?",
                             child: Column(
                               children: [
+                                _loyaltyScanTile(context),
+                                const SizedBox(height: 10),
                                 TextFormField(
                                   controller: _nameController,
                                   textCapitalization: TextCapitalization.words,

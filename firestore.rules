@@ -335,8 +335,20 @@ service cloud.firestore {
     match /loyaltyMembers/{userId} {
       allow read: if request.auth != null && (request.auth.uid == userId || isStaff() || isAdmin());
       allow write: if false;
-      // Admins remove the discount when they deactivate a card.
-      allow delete: if request.auth != null && isAdmin();
+      // Admins mark a member inactive when they deactivate a card. Nothing else changes.
+      allow update: if request.auth != null && isAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active'])
+                    && request.resource.data.active is bool;
+    }
+
+    // Short-lived "look up the next tapped card" request for a walk-in discount. Read only.
+    match /loyaltyLookupRequests/{staffUid} {
+      allow read, delete: if request.auth != null && request.auth.uid == staffUid;
+      allow create, update: if request.auth != null
+                            && request.auth.uid == staffUid
+                            && (isStaff() || isAdmin())
+                            && request.resource.data.keys().hasOnly(['createdAt', 'expiresAt'])
+                            && request.resource.data.createdAt == request.time;
     }
 
     // Short-lived "link the next tapped card to this customer" request, one per staff member.
