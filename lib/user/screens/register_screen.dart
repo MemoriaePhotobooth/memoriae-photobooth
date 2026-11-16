@@ -408,19 +408,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!mounted) return;
 
     if (verified == true) {
-      // Account is created but the person is signed out on purpose —
-      // send them straight to the login page (email pre-filled) instead
-      // of dropping them into the app.
-      final loggedIn = await Navigator.of(context).push<bool>(
-        MaterialPageRoute(
-          builder: (_) => LoginScreen(
-            prefillEmail: _emailController.text.trim(),
-            successNotice: "Account created! Log in to continue.",
-          ),
-        ),
-      );
-      if (!mounted) return;
-      Navigator.of(context).pop(loggedIn == true); // true = logged in, so the caller can open the app
+      // Account is created and the person is already signed in (email just
+      // verified by OTP) — go straight into the app, no login page.
+      Navigator.of(context).pop(true); // true = logged in, so the caller opens the app
       return;
     }
 

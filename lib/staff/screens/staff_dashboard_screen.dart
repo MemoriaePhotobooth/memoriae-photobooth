@@ -11,6 +11,7 @@ import '../services/auth_service.dart';
 import '../services/booking_repository.dart';
 import '../services/camera_rental_repository.dart';
 import '../services/staff_settings.dart';
+import '../../shared/booking_location_map.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_palette.dart';
 import '../widgets/dashboard_kit.dart';
@@ -3226,6 +3227,7 @@ class _BookingDetailPaneState extends State<_BookingDetailPane> {
               _detailRow(context, "Date", DateFormat('EEEE, MMM d, yyyy').format(b.date)),
               _detailRow(context, "Time", b.time),
               _detailRow(context, "Location", b.location.isNotEmpty ? b.location : "Not specified"),
+              if (b.hasPin) BookingLocationMap(lat: b.locationLat!, lng: b.locationLng!, address: b.location),
               _detailRow(context, "Duration", b.duration),
               if (b.guests != null) _detailRow(context, "Guests", '${b.guests}'),
               if (b.wasRescheduled && b.previousDate != null) _buildRescheduledNote(context, b),

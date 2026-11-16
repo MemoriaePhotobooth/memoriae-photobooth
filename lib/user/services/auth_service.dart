@@ -403,9 +403,8 @@ class AuthService {
 
     await credential.user!.updateDisplayName(fullName.trim());
 
-    // Creating the account signs the person in automatically — sign them
-    // back out so they land on the login page and log in themselves.
-    await _auth.signOut();
+    // Creating the account already signs the person in, and the email was
+    // just verified by OTP — so stay signed in (no second login needed).
 
     return AppUser(
       uid: uid,

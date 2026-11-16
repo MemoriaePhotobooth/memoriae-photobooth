@@ -36,6 +36,11 @@ class BookingRecord {
   final String? rejectionReason;
   final DateTime? createdAt;
   final String location;
+  /// Coordinates of the pin the customer dropped when booking (null for
+  /// older bookings or ones made without a pin).
+  final double? locationLat;
+  final double? locationLng;
+  bool get hasPin => locationLat != null && locationLng != null;
   /// When this booking's 15-minute checkout hold lapses. Only set while
   /// [status] is `awaiting_receipt`; cleared once a receipt arrives.
   final DateTime? holdExpiresAt;
@@ -116,6 +121,8 @@ class BookingRecord {
     this.rejectionReason,
     required this.createdAt,
     this.location = '',
+    this.locationLat,
+    this.locationLng,
     this.holdExpiresAt,
     this.autoRejected = false,
     this.acceptedByStaffId,
@@ -227,6 +234,8 @@ class BookingRecord {
       rejectionReason: d['rejectionReason'] as String?,
       createdAt: _asDateOrNull(d['createdAt']),
       location: (d['location'] ?? '') as String,
+      locationLat: (d['locationLat'] as num?)?.toDouble(),
+      locationLng: (d['locationLng'] as num?)?.toDouble(),
       holdExpiresAt: _asDateOrNull(d['holdExpiresAt']),
       autoRejected: d['autoRejected'] == true,
       acceptedByStaffId: d['acceptedByStaffId'] as String?,
@@ -279,6 +288,8 @@ class BookingRecord {
       rejectionReason: status == 'cancelled' ? (rejectionReason ?? this.rejectionReason) : null,
       createdAt: createdAt,
       location: location,
+      locationLat: locationLat,
+      locationLng: locationLng,
       holdExpiresAt: holdExpiresAt,
       autoRejected: autoRejected,
       acceptedByStaffId: acceptedByStaffId,

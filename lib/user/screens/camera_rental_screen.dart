@@ -125,32 +125,51 @@ class _CameraRentalScreenState extends State<CameraRentalScreen> {
 
   Widget _buildInfoCard(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: AppColors.accentTint(0.08),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.accentTint(0.18)),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.accent, AppColors.forest600],
+        ),
+        borderRadius: BorderRadius.circular(26),
+        boxShadow: AppShadows.accentGlow,
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            alignment: Alignment.center,
-            decoration: const BoxDecoration(color: AppColors.accent, shape: BoxShape.circle),
-            child: const Icon(Icons.storefront_rounded, size: 20, color: AppColors.onAccent),
+          Positioned(
+            right: -16,
+            bottom: -20,
+            child: Icon(Icons.photo_camera_rounded, size: 120, color: Colors.white.withValues(alpha: 0.07)),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
+          Padding(
+            padding: const EdgeInsets.all(18),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("Rent in person", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppPalette.textPrimary(context))),
-                const SizedBox(height: 3),
-                Text(
-                  "Pick a camera below to see its rates. Want to make sure it's still free? Message our staff before you come.",
-                  style: TextStyle(fontSize: 12, height: 1.4, color: AppPalette.textSecondary(context)),
+                Container(
+                  width: 46,
+                  height: 46,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: const Icon(Icons.storefront_rounded, size: 22, color: Colors.white),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text("Rent in person", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.2, color: Colors.white)),
+                      const SizedBox(height: 5),
+                      Text(
+                        "Pick a camera below to see its rates. Want to make sure it's still free? Message our staff before you come.",
+                        style: TextStyle(fontSize: 12.5, height: 1.45, color: Colors.white.withValues(alpha: 0.82)),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -218,9 +237,26 @@ class _CameraRentalScreenState extends State<CameraRentalScreen> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  "What's available",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.4, color: AppPalette.textPrimary(context)),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        "What's available",
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.4, color: AppPalette.textPrimary(context)),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: _kAvailableGreen.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        "$availableCount free now",
+                        style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _kAvailableGreen),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 _buildFilter(context, total: cameras.length, available: availableCount),
@@ -230,8 +266,13 @@ class _CameraRentalScreenState extends State<CameraRentalScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 32),
                     child: Column(
                       children: [
-                        Icon(Icons.hourglass_empty_rounded, size: 36, color: AppPalette.textMuted(context)),
-                        const SizedBox(height: 10),
+                        Container(
+                          width: 64,
+                          height: 64,
+                          decoration: BoxDecoration(color: AppColors.accentTint(0.08), shape: BoxShape.circle),
+                          child: Icon(Icons.photo_camera_back_rounded, size: 30, color: _accentText(context)),
+                        ),
+                        const SizedBox(height: 12),
                         Text(
                           "Every camera is out right now.\nMessage the staff to ask when one is back.",
                           textAlign: TextAlign.center,
@@ -297,72 +338,88 @@ class _CameraRentalScreenState extends State<CameraRentalScreen> {
     final photo = _photo(camera.imageUrl);
     final back = _backLabel(rental);
 
-    return Material(
-      color: AppPalette.cardBg(context),
-      borderRadius: BorderRadius.circular(28),
-      child: InkWell(
+    return Container(
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(28), boxShadow: AppShadows.card),
+      child: Material(
+        color: AppPalette.cardBg(context),
         borderRadius: BorderRadius.circular(28),
-        onTap: () => _openDetails(camera, rental),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: AppPalette.divider(context)),
-            boxShadow: AppShadows.soft,
-          ),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: SizedBox(
-                  width: 112,
-                  height: 112,
-                  child: _CameraPhoto(photo: photo, icon: _iconFor(camera.icon), unavailable: unavailable, iconSize: 36),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => _openDetails(camera, rental),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: AppPalette.divider(context)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: SizedBox(
+                    width: 116,
+                    height: 140,
+                    child: _CameraPhoto(photo: photo, icon: _iconFor(camera.icon), unavailable: unavailable, iconSize: 36),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _StatusChip(unavailable: unavailable, backLabel: back),
-                    const SizedBox(height: 8),
-                    Text(
-                      camera.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, height: 1.2, letterSpacing: -0.3, color: AppPalette.textPrimary(context)),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: SizedBox(
+                    height: 140,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _StatusChip(unavailable: unavailable, backLabel: back),
+                        const SizedBox(height: 8),
+                        Text(
+                          camera.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, height: 1.2, letterSpacing: -0.3, color: AppPalette.textPrimary(context)),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          camera.description,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 11.5, height: 1.35, color: AppPalette.textMuted(context)),
+                        ),
+                        const Spacer(),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Expanded(
+                              child: Text.rich(
+                                TextSpan(
+                                  children: [
+                                    TextSpan(text: "from ", style: TextStyle(fontSize: 11.5, color: AppPalette.textMuted(context))),
+                                    TextSpan(
+                                      text: formatPeso(camera.dailyRate),
+                                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -0.3, color: _accentText(context)),
+                                    ),
+                                    TextSpan(text: " / day", style: TextStyle(fontSize: 11.5, color: AppPalette.textMuted(context))),
+                                  ],
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              width: 34,
+                              height: 34,
+                              decoration: BoxDecoration(color: AppColors.accentTint(0.10), shape: BoxShape.circle),
+                              child: Icon(Icons.arrow_forward_rounded, size: 17, color: _accentText(context)),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      camera.description,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 11.5, height: 1.35, color: AppPalette.textMuted(context)),
-                    ),
-                    const SizedBox(height: 8),
-                    Text.rich(
-                      TextSpan(
-                        children: [
-                          TextSpan(
-                            text: "from ",
-                            style: TextStyle(fontSize: 11.5, color: AppPalette.textMuted(context)),
-                          ),
-                          TextSpan(
-                            text: formatPeso(camera.dailyRate),
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _accentText(context)),
-                          ),
-                          TextSpan(
-                            text: " / day",
-                            style: TextStyle(fontSize: 11.5, color: AppPalette.textMuted(context)),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

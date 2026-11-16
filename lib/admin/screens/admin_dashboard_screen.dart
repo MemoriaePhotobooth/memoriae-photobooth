@@ -1,5 +1,6 @@
 import '../../shared/app_modal.dart';
 import '../../shared/top_toast.dart';
+import '../../shared/booking_location_map.dart';
 import 'refund_requests_screen.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -4559,6 +4560,7 @@ class _BookingDetailPaneState extends State<_BookingDetailPane> {
                 _detailRow(context, Icons.calendar_today_rounded, "Date", DateFormat('EEEE, MMM d, yyyy').format(b.date)),
                 _detailRow(context, Icons.schedule_rounded, "Time", b.time),
                 _detailRow(context, Icons.place_rounded, "Location", b.location.isNotEmpty ? b.location : "Not specified"),
+                if (b.hasPin) BookingLocationMap(lat: b.locationLat!, lng: b.locationLng!, address: b.location),
                 _detailRow(context, Icons.hourglass_bottom_rounded, "Duration", b.duration),
                 if (b.guests != null) _detailRow(context, Icons.groups_rounded, "Guests", '${b.guests}'),
                 _detailRow(context, Icons.sell_rounded, "Package Price", '₱${b.price}'),

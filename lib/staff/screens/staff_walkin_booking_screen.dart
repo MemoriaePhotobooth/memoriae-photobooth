@@ -420,35 +420,70 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
     });
   }
 
+  // Reader-style animation while waiting for the customer to tap: a maroon disc
+  // with a spinning ring and a contactless icon.
+  Widget _scanRing() {
+    const maroon = Color(0xFF6E1B1E);
+    return SizedBox(
+      width: 120,
+      height: 120,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 120,
+            height: 120,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: maroon.withValues(alpha: 0.06),
+            ),
+          ),
+          const SizedBox(
+            width: 112,
+            height: 112,
+            child: CircularProgressIndicator(strokeWidth: 3, color: maroon),
+          ),
+          Container(
+            width: 84,
+            height: 84,
+            decoration: const BoxDecoration(shape: BoxShape.circle, color: maroon),
+            child: const Icon(Icons.contactless_outlined, color: Colors.white, size: 34),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _loyaltyScanTile(BuildContext context) {
     const maroon = Color(0xFF6E1B1E);
     final msg = _scanMsg;
     final isErr = _scanIsError;
     final fg = isErr ? const Color(0xFFA32D2D) : const Color(0xFF0F6E56);
     final bg = isErr ? const Color(0xFFFBEAEA) : const Color(0xFFE1F5EE);
+
+    final button = OutlinedButton.icon(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: maroon,
+        side: const BorderSide(color: maroon),
+        minimumSize: const Size.fromHeight(44),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      onPressed: _scanning ? null : _scanLoyaltyCard,
+      icon: _scanning ? const _ReaderIcon(size: 22) : const Icon(Icons.contactless_outlined, size: 18),
+      label: Text(
+        _scanning ? 'Waiting for card...' : 'Scan loyalty card',
+        style: const TextStyle(fontWeight: FontWeight.w600),
+      ),
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        OutlinedButton.icon(
-          style: OutlinedButton.styleFrom(
-            foregroundColor: maroon,
-            side: const BorderSide(color: maroon),
-            minimumSize: const Size.fromHeight(44),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-          onPressed: _scanning ? null : _scanLoyaltyCard,
-          icon: _scanning
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: maroon),
-                )
-              : const Icon(Icons.contactless_outlined, size: 18),
-          label: Text(
-            _scanning ? 'Waiting for card...' : 'Scan loyalty card',
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-        ),
+        if (_scanning) ...[
+          Center(child: _GlowPulse(circle: true, child: _scanRing())),
+          const SizedBox(height: 12),
+        ],
+        _scanning ? _GlowPulse(radius: 12, child: button) : button,
         if (msg != null) ...[
           const SizedBox(height: 8),
           Container(
@@ -1651,6 +1686,25 @@ class _StaffWalkInBookingScreenState extends State<StaffWalkInBookingScreen> {
                         style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: AppPalette.textMuted(context)),
                       ),
                       Text(_peso(total), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: AppColors.accent)),
+                      if (_discountAmount > 0)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _peso(pkg?.price ?? 0),
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppPalette.textMuted(context),
+                                decoration: TextDecoration.lineThrough,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              "Loyalty -${_peso(_discountAmount)}",
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF0F6E56)),
+                            ),
+                          ],
+                        ),
                     ],
                   ),
                 ),
@@ -1745,4 +1799,80 @@ class _ScanFramePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _ScanFramePainter old) => old.color != color;
+}
+
+/// Wraps a widget in a soft maroon glow that pulses while a card is being scanned.
+class _GlowPulse extends StatefulWidget {
+  const _GlowPulse({required this.child, this.circle = false, this.radius = 12});
+
+  final Widget child;
+  final bool circle;
+  final double radius;
+
+  @override
+  State<_GlowPulse> createState() => _GlowPulseState();
+}
+
+class _GlowPulseState extends State<_GlowPulse> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final t = _controller.value;
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            shape: widget.circle ? BoxShape.circle : BoxShape.rectangle,
+            borderRadius: widget.circle ? null : BorderRadius.circular(widget.radius),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF6E1B1E).withValues(alpha: 0.15 + 0.30 * t),
+                blurRadius: 10 + 16 * t,
+                spreadRadius: 1 + 3 * t,
+              ),
+            ],
+          ),
+          child: child,
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
+
+/// Small reader badge used on the scan button while waiting for a card:
+/// a maroon disc with a white inner circle and the contactless waves.
+class _ReaderIcon extends StatelessWidget {
+  const _ReaderIcon({this.size = 22});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    const maroon = Color(0xFF6E1B1E);
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(color: maroon, shape: BoxShape.circle),
+      child: Container(
+        width: size * 0.62,
+        height: size * 0.62,
+        alignment: Alignment.center,
+        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+        child: Icon(Icons.contactless_outlined, size: size * 0.36, color: maroon),
+      ),
+    );
+  }
 }
